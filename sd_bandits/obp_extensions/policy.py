@@ -27,7 +27,7 @@ class ExploreThenCommit(BaseContextFreePolicy):
     random_state: int, default=None
         Controls the random seed in sampling actions.
 
-    policy_name: str, default=f'egreedy_{epsilon}'.
+    policy_name: str, default=f'etc_{min_n}'.
         Name of bandit policy.
         
         
