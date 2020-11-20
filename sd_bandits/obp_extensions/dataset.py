@@ -43,21 +43,21 @@ class DeezerDataset(BaseRealBanditDataset):
 
     def obtain_batch_bandit_feedback(
         self,
-        n_rounds: int = 100,
-        users_per_round: int = 20000,
-        replace_within_round: bool = True,
+        n_batches: int = 100,
+        users_per_batch: int = 20000,
+        replace_within_batch: bool = True,
         seed: int = 1,
         cascade: bool = True,
     ):
         rng = np.random.default_rng(seed)
         user_indices = []
-        for i in range(n_rounds):
-            user_indices_round = rng.choice(
+        for i in range(n_batches):
+            user_indices_batch = rng.choice(
                 range(len(self.user_features)),
-                size=users_per_round,
-                replace=replace_within_round,
+                size=users_per_batch,
+                replace=replace_within_batch,
             )
-            user_indices.append(user_indices_round)
+            user_indices.append(user_indices_batch)
         user_indices = np.concatenate(user_indices)
         all_scores = []
         all_item_indices = []
@@ -122,6 +122,7 @@ class DeezerDataset(BaseRealBanditDataset):
         context = np.array(context)
         action_context = self.playlist_features[actions, :]
         pscore = np.array([1 / self.playlist_features.shape[0] for i in actions])
+        n_rounds = len(actions)
 
         return {
             "action": actions,
@@ -130,4 +131,6 @@ class DeezerDataset(BaseRealBanditDataset):
             "context": context,
             "action_context": action_context,
             "pscore": pscore,
+            "n_rounds": n_rounds,
+            "n_actions": self.n_actions,
         }
