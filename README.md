@@ -2,6 +2,18 @@
 
 Dan Turkel, Chris Ick, Aidan Claffey, Johnny Ma
 
+## Local Setup
+
+Included in this repo are only the toy versions of the Deezer and OBD datasets.
+
+It is recommended to download the full versions somewhere on your filesystem and then symlink them into this repo as follows:
+
+```shell
+$ cd data
+$ ln -s ~/path/to/obd_full open_bandit_dataset
+$ ln -s ~/path/to/deezer_full deezer_carousel_bandits
+```
+
 ## Quick Links
 
 - [Deezer Github repo](https://github.com/deezer/carousel_bandits)
