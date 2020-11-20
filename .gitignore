@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+data/open_bandit_dataset
+data/deezer_carousel_bandits
+
 # C extensions
 *.so
 
