@@ -57,14 +57,17 @@ class ExploreThenCommit(BaseContextFreePolicy):
         """
         
         predicted_rewards = self.reward_counts
-        random_score = self.random_.random(predicted_rewards.shape)
+        random_score = self.random_.random(predicted_rewards.shape) # to break ties
+        # get the number of times each action needs to be pulled to get out of the 'explore stage'
         actions_left = np.maximum(np.zeros_like(self.action_counts), self.min_n - self.action_counts)
+        # rank the actions based on actions_left, predicted_rewards, and finally, random_score to break ties
         ranked_actions = np.lexsort((random_score, -predicted_rewards, -actions_left ))
         return ranked_actions[: self.len_list]
 
 
     def update_params(self, action: int, reward: float) -> None:
         """Update policy parameters.
+        Same as obp.policy.EpsilonGreedy
 
         Parameters
         ----------
