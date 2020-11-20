@@ -13,6 +13,29 @@ class DeezerDataset(BaseRealBanditDataset):
         len_list: int = 12,
         len_init: int = 3,
     ):
+        """Dataset container for Deezer's carousel bandit data.
+
+        Deezer's dataset doesn't contain logged clicks but instead has user and item (playlist)
+        features that can be used to generate clicks based on "ground-truth" click probabilities.
+
+        This class allows for the generation of those clicks.
+
+        Relevant links:
+        - repo: https://github.com/deezer/carousel_bandits
+        - paper: https://arxiv.org/abs/2009.06546
+        - data: https://zenodo.org/record/4048678#.X22w4pMza3J
+
+        Parameters
+        ----------
+        user_features : str
+            Path to the user features csv.
+        playlist_features : str
+            Path to the playlist features csv.
+        len_list : int
+            How many playlists can be shown to a user (Deezer uses 12).
+        len_init : int
+            How many playlists is the user guaranteed to see (Deezer uses 3).
+        """
         (
             self.user_features,
             self.user_segments,
@@ -26,6 +49,15 @@ class DeezerDataset(BaseRealBanditDataset):
         self.len_init = len_init
 
     def load_raw_data(self, user_features: str, playlist_features: str):
+        """Load data from Deezer data CSVs.
+
+        Parameters
+        ----------
+        user_features : str
+            Path to the user features csv.
+        playlist_features : str
+            Path to the playlist features csv.
+        """
         user_df = pd.read_csv(user_features)
         user_features = np.concatenate(
             [np.array(user_df.drop(["segment"], axis=1)), np.ones((len(user_df), 1))],
@@ -49,6 +81,28 @@ class DeezerDataset(BaseRealBanditDataset):
         seed: int = 1,
         cascade: bool = True,
     ):
+        """Generate feedback based on the "ground truth" Deezer user/item features.
+
+        Sample users (with or without replacement) for each batch, then simulate uniformly random
+        policy, where users click actions based on the "ground-truth" click probabilities calculated
+        from the user/playlist feature dot-product.
+
+        If cascade is enabled, we don't observe any rewards after max(len_init, last_click_index).
+
+        Parameters
+        ----------
+        n_batches : int
+            How many batches of sampled users to simulate.
+        users_per_batch : int
+            How many users to sample each batch.
+        replace_within_batch : bool
+            Whether to replace users when sampling for a batch (Deezer uses True).
+        seed : int
+            Random seed.
+        cascade : bool
+            Whether to simulate cascade logic, where rewards after max(len_init, last_click_index)
+            are not observed.
+        """
         rng = np.random.default_rng(seed)
         user_indices = []
         for i in range(n_batches):
@@ -57,8 +111,7 @@ class DeezerDataset(BaseRealBanditDataset):
                 size=users_per_batch,
                 replace=replace_within_batch,
             )
-            user_indices.append(user_indices_batch)
-        user_indices = np.concatenate(user_indices)
+            user_indices += list(user_indices_batch)
         all_scores = []
         all_item_indices = []
 
@@ -69,9 +122,11 @@ class DeezerDataset(BaseRealBanditDataset):
             all_item_indices.append(item_indices)
             user = self.user_features[user_idx, :]
             items = self.playlist_features[item_indices, :]
+            # calculate raw user-playlist affinities
             raw_scores = items @ user
             all_scores.append(raw_scores)
 
+        # convert user/playlist affinities into click probabilities
         all_probabilities = expit(np.array(all_scores))
         all_item_indices = np.array(all_item_indices)
 
@@ -84,32 +139,32 @@ class DeezerDataset(BaseRealBanditDataset):
         positions = []
         context = []
 
-        # apply the cascade effect so that the first playlist interacted with is
-        # the only playlist interacted with
         for row in tqdm(
             range(rewards_uncascaded.shape[0]), desc="Generating feedback:"
         ):
-            # Loosely based on Deezer's simulation code
-            # https://github.com/deezer/carousel_bandits/blob/master/environment.py#L77
+            # Loosely based on Deezer's simulation code, https://github.com/deezer/carousel_bandits/blob/master/environment.py#L77
+            # However, the code deviates from the paper in the cascade behavior: paper says that if
+            # l_init = 3 and only the 2nd item was clicked, rewards are 0 1 0 X X X ..., but code
+            # instead does 0 1 X X X X ... (stopping after 2nd item, rather than after l_init'th item).
+            #
+            # Guillaume from Deezer confirmed the simplification but noted that it did not make an
+            # appreciable difference in the experiments. We choose to simulate the logic of the *paper*
+            # (0 1 0 X X X ...).
 
-            no_rewards = rewards_uncascaded[row, :].sum() == 0
-
-            # in cascade mode, check only the first len_init spots if there are no rewards
-            # otherwise check the whole list
-            if cascade:
-                positions_to_check = self.len_init if no_rewards else self.len_list
-            # if not cascade mode, always check the whole list
-            else:
+            # If we're not in cascade mode, we always see all rewards
+            if not cascade:
                 positions_to_check = self.len_list
+            # Otherwise, we see max(l_init, last_click_index + 1) rewards
+            else:
+                click_indices = np.where(rewards_uncascaded[row, :])[0]
+                try:
+                    last_click_index = click_indices[-1]
+                    positions_to_check = max(self.len_init, last_click_index + 1)
+                except IndexError:
+                    # no rewards at all
+                    positions_to_check = self.len_init
 
             for position in range(positions_to_check):
-                # if we're in cascade mode AND we've made it past len_init AND there are
-                # no rewards left, stop recording rewards
-                if cascade:
-                    remaining_rewards = rewards_uncascaded[row, position:].sum()
-                    if (position >= self.len_init) and (remaining_rewards == 0):
-                        break
-
                 reward = rewards_uncascaded[row, position]
                 rewards.append(reward)
                 positions.append(position)
