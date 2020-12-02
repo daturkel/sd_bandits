@@ -1,0 +1,7 @@
+key: obp
+name: save_obj_test
+parameters:
+  behavior_policy: bts
+  campaign: all
+  data_path: ~/sd_bandits/data/obd
+type: dataset
