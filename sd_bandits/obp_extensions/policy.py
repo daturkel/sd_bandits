@@ -137,6 +137,7 @@ class SegmentPolicy():
         # create dictionary of policy objects
         segment_policy_pairs = [(i, deepcopy(self.base_policy)) for i in range(self.n_segments)]
         self.segment_policies = dict(segment_policy_pairs)
+        self.update_dict = dict([(i, []) for i in range(self.n_segments)])
         
     @property
     def action_counts(self):
@@ -191,5 +192,26 @@ class SegmentPolicy():
         """
         # first update n_trial for the policy
         self.n_trial += 1
-        self.segment_policies[segment].n_trial = self.n_trial - 1
-        self.segment_policies[segment].update_params(action, reward)
+        
+        # then add action and reward to the update dictionary
+        self.update_dict[segment].append((action, reward))
+
+        # if the policy should update its parameters, call _update_all_params
+        if self.n_trial % self.batch_size == 0:
+            self._update_all_params()
+                    
+    def _update_all_params(self) -> None:
+        """Updates all segment policy parameters.
+        Only triggered when n_trials mod batch_size == 0
+        """
+        for seg_, action_reward_list in self.update_dict.items():
+            # setting each segment policy's batch_size to the number of times
+            # it has to update. so it will trigger a full at the end of the 
+            # inner for-loop
+            self.segment_policies[seg_].batch_size =  len(action_reward_list)
+            self.segment_policies[seg_].n_trial = 0
+            for (action_, reward_) in action_reward_list:
+                self.segment_policies[seg_].update_params(action_, reward_)
+                
+            # then reset the update dict
+            self.update_dict[seg_] = []
