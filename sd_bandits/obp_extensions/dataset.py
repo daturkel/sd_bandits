@@ -1,4 +1,7 @@
+from typing import Optional, Tuple, Union
+
 from obp.dataset import BaseRealBanditDataset
+from obp.policy import BaseContextFreePolicy, BaseContextualPolicy
 import numpy as np
 import pandas as pd
 from scipy.special import expit
@@ -35,6 +38,7 @@ class DeezerDataset(BaseRealBanditDataset):
             How many playlists can be shown to a user (Deezer uses 12).
         len_init : int
             How many playlists is the user guaranteed to see (Deezer uses 3).
+
         """
         (
             self.user_features,
@@ -48,7 +52,9 @@ class DeezerDataset(BaseRealBanditDataset):
         self.len_list = len_list
         self.len_init = len_init
 
-    def load_raw_data(self, user_features: str, playlist_features: str):
+    def load_raw_data(
+        self, user_features: str, playlist_features: str
+    ) -> Tuple[np.array]:
         """Load data from Deezer data CSVs.
 
         Parameters
@@ -57,6 +63,11 @@ class DeezerDataset(BaseRealBanditDataset):
             Path to the user features csv.
         playlist_features : str
             Path to the playlist features csv.
+
+        Returns
+        -------
+        Tuple[np.array]
+            A tuple of three arrays: the user features, user segments and playlist features.
         """
         user_df = pd.read_csv(user_features)
         user_features = np.concatenate(
@@ -73,17 +84,142 @@ class DeezerDataset(BaseRealBanditDataset):
     def pre_process(self):
         pass
 
+    def _get_positions_to_observe(
+        self, rewards_uncascaded: np.array, cascade: bool, cascade_at: str
+    ) -> int:
+        """Determine which positions to observe the rewards of.
+
+        Loosely based on Deezer's simulation code, https://github.com/deezer/carousel_bandits/blob/master/environment.py#L77
+        However, the code deviates from the paper in the cascade behavior: paper says that if
+        l_init = 3 and only the 2nd item was clicked, rewards are 0 1 0 X X X ..., but code
+        instead does 0 1 X X X X ... (stopping after 2nd item, rather than after l_init'th item).
+
+        Guillaume from Deezer confirmed the simplification but noted that it did not make an
+        appreciable difference in the experiments. We choose to simulate the logic of the *paper*
+        (0 1 0 X X X ...).
+
+        Deezer's code also cascades at the _first_ clicked item, so we default to that behavior,
+        but allow cascading at the _last_ clicked item too.
+
+        Parameters
+        ----------
+        rewards_uncascaded : np.array
+            An array of the full list of rewards for all positions.
+        cascade : bool
+            Whether or not to simulate the cascade.
+        cascade_at : str
+            One of "first" or "last" indicating if we want to stop observing at the first or
+            last clicked item.
+
+        Returns
+        -------
+        int :
+            the number of positions whose rewards we'll observe
+
+        """
+        # If we're not in cascade mode, we always see all rewards
+        if not cascade:
+            positions_to_observe = self.len_list
+        # Otherwise, we see max(l_init, click_index_of_interest + 1) rewards
+        else:
+            # the indices of every position that was clicked on
+            click_indices = np.where(rewards_uncascaded)[0]
+            index_of_interest = 0 if cascade_at == "first" else -1
+            try:
+                click_index_of_interest = click_indices[index_of_interest]
+                positions_to_observe = max(self.len_init, click_index_of_interest + 1)
+            except IndexError:
+                # no rewards at all, default to len_init
+                positions_to_observe = self.len_init
+        return positions_to_observe
+
     def obtain_batch_bandit_feedback(
         self,
         n_batches: int = 100,
         users_per_batch: int = 20000,
-        replace_within_batch: bool = True,
         seed: int = 1,
         cascade: bool = True,
-    ):
+        cascade_at: str = "first",
+        policy: Optional[Union[BaseContextFreePolicy, BaseContextualPolicy]] = None,
+    ) -> dict:
         """Generate feedback based on the "ground truth" Deezer user/item features.
 
-        Sample users (with or without replacement) for each batch, then simulate uniformly random
+        If a policy is provided, we use that policy to generate actions for each round and update
+        the policy every batch. Otherwise, actions are always selected uniformly at random.
+
+        If cascade is enabled, we don't observe any rewards after max(len_init, last_click_index).
+
+        Parameters
+        ----------
+        n_batches : int
+            How many batches of sampled users to simulate.
+        users_per_batch : int
+            How many users to sample each batch.
+        seed : int
+            Random seed.
+        cascade : bool
+            Whether to simulate cascade logic, where rewards after max(len_init, last_click_index)
+            are not observed.
+        cascade_at : str
+            One of "first" or "last" indicating if we want to stop observing at the first or
+            last clicked item.
+        policy : Optional[Union[BaseContextFreePolicy, BaseContextualPolicy]]
+            Optionally, a policy that will be used for online simulation.
+
+        Returns
+        -------
+        dict
+            A feedback dict containing:
+                action : np.array (n_rounds,)
+                    Array of actions presented.
+                reward : np.array (n_rounds,)
+                    Array of rewards returned.
+                position : np.array (n_rounds,)
+                    Array of the position of each action.
+                context : np.array (n_rounds, 97)
+                    Array of the user context for each round.
+                action_context : np.array (n_rounds, 97)
+                    Array of the action context for each round.
+                pscore : np.array (n_rounds,)
+                    Array of the probability of choosing this action (always = 1 / n_actions).
+                n_rounds : int
+                    Number of users per batch * number of batches * number of items observed for that
+                    user's session.
+                n_actions : int
+                    Number of available items (always 862).
+
+        """
+        if cascade_at not in ["first", "last"]:
+            raise ValueError("cascade_at must be one of ('first','last')")
+        if policy is None:
+            return self._obtain_batch_bandit_feedback_random(
+                n_batches,
+                users_per_batch,
+                seed,
+                cascade,
+                cascade_at,
+            )
+        else:
+            return self._obtain_batch_bandit_feedback_on_policy(
+                policy,
+                n_batches,
+                users_per_batch,
+                seed,
+                cascade,
+                cascade_at,
+            )
+
+    def _obtain_batch_bandit_feedback_random(
+        self,
+        n_batches: int,
+        users_per_batch: int,
+        seed: int,
+        cascade: bool,
+        cascade_at: str,
+    ) -> dict:
+        """Generate feedback based on the "ground truth" Deezer user/item features.
+
+        Sample users (with replacement) for each batch, then simulate uniformly random
         policy, where users click actions based on the "ground-truth" click probabilities calculated
         from the user/playlist feature dot-product.
 
@@ -95,35 +231,58 @@ class DeezerDataset(BaseRealBanditDataset):
             How many batches of sampled users to simulate.
         users_per_batch : int
             How many users to sample each batch.
-        replace_within_batch : bool
-            Whether to replace users when sampling for a batch (Deezer uses True).
         seed : int
             Random seed.
         cascade : bool
             Whether to simulate cascade logic, where rewards after max(len_init, last_click_index)
             are not observed.
+        cascade_at : str
+            One of "first" or "last" indicating if we want to stop observing at the first or
+            last clicked item.
+
+        Returns
+        -------
+        dict
+            A feedback dict containing:
+                action : np.array (n_rounds,)
+                    Array of actions presented.
+                reward : np.array (n_rounds,)
+                    Array of rewards returned.
+                position : np.array (n_rounds,)
+                    Array of the position of each action.
+                context : np.array (n_rounds, 97)
+                    Array of the user context for each round.
+                action_context : np.array (n_rounds, 97)
+                    Array of the action context for each round.
+                pscore : np.array (n_rounds,)
+                    Array of the probability of choosing this action (always = 1 / n_actions).
+                n_rounds : int
+                    Number of users per batch * number of batches * number of items observed for that
+                    user's session.
+                n_actions : int
+                    Number of available items (always 862).
+                users : np.array (n_rounds * users_per_round,)
+                    The users that were generated for this simulation.
+
         """
         rng = np.random.default_rng(seed)
-        user_indices = []
-        for i in range(n_batches):
-            user_indices_batch = rng.choice(
-                range(len(self.user_features)),
-                size=users_per_batch,
-                replace=replace_within_batch,
-            )
-            user_indices += list(user_indices_batch)
+        user_indices = rng.choice(
+            range(len(self.user_features)),
+            size=users_per_batch * n_batches,
+            replace=True,
+        )
         all_scores = []
         all_item_indices = []
 
-        for user_idx in tqdm(user_indices, desc="Calculating user scores:"):
+        for user_idx in tqdm(user_indices, desc="Calculating click probabilities"):
             item_indices = rng.choice(
                 range(len(self.playlist_features)), size=self.len_list, replace=False
             )
             all_item_indices.append(item_indices)
-            user = self.user_features[user_idx, :]
-            items = self.playlist_features[item_indices, :]
+            this_user_features = self.user_features[user_idx, :]
+            these_items_features = self.playlist_features[item_indices, :]
             # calculate raw user-playlist affinities
-            raw_scores = items @ user
+            raw_scores = these_items_features @ this_user_features
             all_scores.append(raw_scores)
 
         # convert user/playlist affinities into click probabilities
@@ -139,32 +298,12 @@ class DeezerDataset(BaseRealBanditDataset):
         positions = []
         context = []
 
-        for row in tqdm(
-            range(rewards_uncascaded.shape[0]), desc="Generating feedback:"
-        ):
-            # Loosely based on Deezer's simulation code, https://github.com/deezer/carousel_bandits/blob/master/environment.py#L77
-            # However, the code deviates from the paper in the cascade behavior: paper says that if
-            # l_init = 3 and only the 2nd item was clicked, rewards are 0 1 0 X X X ..., but code
-            # instead does 0 1 X X X X ... (stopping after 2nd item, rather than after l_init'th item).
-            #
-            # Guillaume from Deezer confirmed the simplification but noted that it did not make an
-            # appreciable difference in the experiments. We choose to simulate the logic of the *paper*
-            # (0 1 0 X X X ...).
+        for row in tqdm(range(rewards_uncascaded.shape[0]), desc="Generating feedback"):
+            positions_to_observe = self._get_positions_to_observe(
+                rewards_uncascaded[row], cascade, cascade_at
+            )
 
-            # If we're not in cascade mode, we always see all rewards
-            if not cascade:
-                positions_to_check = self.len_list
-            # Otherwise, we see max(l_init, last_click_index + 1) rewards
-            else:
-                click_indices = np.where(rewards_uncascaded[row, :])[0]
-                try:
-                    last_click_index = click_indices[-1]
-                    positions_to_check = max(self.len_init, last_click_index + 1)
-                except IndexError:
-                    # no rewards at all
-                    positions_to_check = self.len_init
-
-            for position in range(positions_to_check):
+            for position in range(positions_to_observe):
                 reward = rewards_uncascaded[row, position]
                 rewards.append(reward)
                 positions.append(position)
@@ -188,4 +327,142 @@ class DeezerDataset(BaseRealBanditDataset):
             "pscore": pscore,
             "n_rounds": n_rounds,
             "n_actions": self.n_actions,
+            "users": user_indices,
+        }
+
+    def _obtain_batch_bandit_feedback_on_policy(
+        self,
+        policy: BaseContextFreePolicy,
+        n_batches: int,
+        users_per_batch: int,
+        seed: int,
+        cascade: bool,
+        cascade_at: str,
+    ) -> dict:
+        """Generate feedback based on the "ground truth" Deezer user/item features.
+
+        Sample users (with replacement) for each batch, then simulate uniformly random
+        policy, where users click actions based on the "ground-truth" click probabilities calculated
+        from the user/playlist feature dot-product.
+
+        If cascade is enabled, we don't observe any rewards after max(len_init, last_click_index).
+
+        Parameters
+        ----------
+        policy : Union[BaseContextFreePolicy, BaseContextualPolicy]
+            Policy that will be used for online simulation.
+        n_batches : int
+            How many batches of sampled users to simulate.
+        users_per_batch : int
+            How many users to sample each batch.
+        seed : int
+            Random seed.
+        cascade : bool
+            Whether to simulate cascade logic, where rewards after max(len_init, last_click_index)
+            are not observed.
+        cascade_at : str
+            One of "first" or "last" indicating if we want to stop observing at the first or
+            last clicked item.
+
+        Returns
+        -------
+        dict
+            A feedback dict containing:
+                action : np.array (n_rounds,)
+                    Array of actions presented.
+                reward : np.array (n_rounds,)
+                    Array of rewards returned.
+                position : np.array (n_rounds,)
+                    Array of the position of each action.
+                context : np.array (n_rounds, 97)
+                    Array of the user context for each round.
+                action_context : np.array (n_rounds, 97)
+                    Array of the action context for each round.
+                pscore: NoneType
+                    N/A.
+                n_rounds : int
+                    Number of users per batch * number of batches * number of items observed for that
+                    user's session.
+                n_actions : int
+                    Number of available items (always 862).
+                users : np.array (n_rounds * users_per_round,)
+                    The users that were generated for this simulation.
+
+        """
+        policy.batch_size = np.inf
+        rng = np.random.default_rng(seed)
+        user_indices = rng.choice(
+            range(len(self.user_features)),
+            size=users_per_batch * n_batches,
+            replace=True,
+        )
+
+        all_probabilities = []
+        all_item_indices = []
+
+        relevant_user_features = self.user_features[user_indices, :]
+
+        actions = []
+        rewards = []
+        positions = []
+        context = []
+        selected_actions = []
+
+        for i, user_idx in tqdm(
+            enumerate(user_indices),
+            desc="Simulating online learning",
+            total=len(user_indices),
+        ):
+            if policy.policy_type == "contextfree":
+                item_indices = policy.select_action()
+            else:
+                item_indices = policy.select_action(self.user_features[user_idx])
+            all_item_indices.append(item_indices)
+            this_user_features = self.user_features[user_idx, :]
+            these_items_features = self.playlist_features[item_indices, :]
+            # calculate raw user-playlist affinities
+            raw_scores = these_items_features @ this_user_features
+            probabilities = expit(raw_scores)
+
+            # observe all rewards
+            rewards_uncascaded = rng.binomial(n=1, p=probabilities)
+            positions_to_observe = self._get_positions_to_observe(
+                rewards_uncascaded, cascade, cascade_at
+            )
+
+            for position in range(positions_to_observe):
+                is_last_position = position == positions_to_observe - 1
+                is_end_of_batch = (i + 1) % users_per_batch == 0
+                if is_last_position and is_end_of_batch:
+                    # sneakily trigger update
+                    policy.batch_size = policy.n_trial + 1
+                reward = rewards_uncascaded[position]
+                action = item_indices[position]
+                policy.update_params(action=action, reward=reward)
+                rewards.append(reward)
+                positions.append(position)
+                actions.append(action)
+                context.append(self.user_features[user_idx])
+                selected_actions.append(all_item_indices[i])
+
+        actions = np.array(actions)
+        rewards = np.array(rewards)
+        positions = np.array(positions)
+        context = np.array(context)
+        action_context = self.playlist_features[actions, :]
+        n_rounds = len(actions)
+        selected_actions = np.array(selected_actions)
+
+        return {
+            "action": actions,
+            "reward": rewards,
+            "position": positions,
+            "context": context,
+            "action_context": action_context,
+            "pscore": None,
+            "n_rounds": n_rounds,
+            "n_actions": self.n_actions,
+            "policy": policy,
+            "selected_actions": selected_actions,
+            "users": user_indices,
         }
