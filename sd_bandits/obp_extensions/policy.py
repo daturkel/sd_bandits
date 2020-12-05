@@ -213,5 +213,5 @@ class SegmentPolicy():
             for (action_, reward_) in action_reward_list:
                 self.segment_policies[seg_].update_params(action_, reward_)
                 
-            # then reset the update dict
-            self.update_dict[seg_] = []
+        # then reset the update dict
+       self.update_dict = dict([(i, []) for i in range(self.n_segments)])
