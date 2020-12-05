@@ -1,0 +1,7 @@
+key: BernoulliTS
+name: save_obj_test
+parameters:
+  batch_size: 5
+  len_list: 3
+  n_actions: 5
+type: policy

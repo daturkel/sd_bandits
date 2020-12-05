@@ -1,0 +1,5 @@
+key: DoublyRobustWithShrinkage
+name: save_obj_test
+parameters:
+  lambda_: 1
+type: estimator
