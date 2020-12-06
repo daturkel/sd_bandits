@@ -187,6 +187,12 @@ class DeezerDataset(BaseRealBanditDataset):
                     user's session.
                 n_actions : int
                     Number of available items (always 862).
+                users : np.array (n_rounds * users_per_round,)
+                    The users that were generated for this simulation.
+                batches : np.array (n_rounds,)
+                    The batch number corresponding to each round.
+                segments : np.array (n_rounds,)
+                    The segment according to each round.
 
         """
         if cascade_at not in ["first", "last"]:
@@ -263,6 +269,10 @@ class DeezerDataset(BaseRealBanditDataset):
                     Number of available items (always 862).
                 users : np.array (n_rounds * users_per_round,)
                     The users that were generated for this simulation.
+                batches : np.array (n_rounds,)
+                    The batch number corresponding to each round.
+                segments : np.array (n_rounds,)
+                    The segment according to each round.
 
         """
         rng = np.random.default_rng(seed)
@@ -292,7 +302,7 @@ class DeezerDataset(BaseRealBanditDataset):
         rewards_uncascaded = rng.binomial(n=1, p=all_probabilities)
 
         relevant_user_features = self.user_features[user_indices, :]
-        
+
         relevant_user_segments = self.user_segments[user_indices]
 
         actions = []
@@ -300,6 +310,7 @@ class DeezerDataset(BaseRealBanditDataset):
         positions = []
         context = []
         segments = []
+        batches = []
 
         for row in tqdm(range(rewards_uncascaded.shape[0]), desc="Generating feedback"):
             positions_to_observe = self._get_positions_to_observe(
@@ -313,7 +324,7 @@ class DeezerDataset(BaseRealBanditDataset):
                 actions.append(all_item_indices[row, position])
                 context.append(relevant_user_features[row])
                 segments.append(relevant_user_segments.iloc[row])
-                
+                batches.append(row // users_per_batch)
 
         actions = np.array(actions)
         rewards = np.array(rewards)
@@ -323,6 +334,7 @@ class DeezerDataset(BaseRealBanditDataset):
         action_context = self.playlist_features[actions, :]
         pscore = np.array([1 / self.playlist_features.shape[0] for i in actions])
         n_rounds = len(actions)
+        batches = np.array(batches)
 
         return {
             "action": actions,
@@ -334,7 +346,8 @@ class DeezerDataset(BaseRealBanditDataset):
             "n_rounds": n_rounds,
             "n_actions": self.n_actions,
             "users": user_indices,
-            "segments": segments
+            "segments": segments,
+            "batches": batches,
         }
 
     def _obtain_batch_bandit_feedback_on_policy(
@@ -394,6 +407,10 @@ class DeezerDataset(BaseRealBanditDataset):
                     Number of available items (always 862).
                 users : np.array (n_rounds * users_per_round,)
                     The users that were generated for this simulation.
+                batches : np.array (n_rounds,)
+                    The batch number corresponding to each round.
+                segments : np.array (n_rounds,)
+                    The segment according to each round.
 
         """
         policy.batch_size = np.inf
@@ -413,6 +430,7 @@ class DeezerDataset(BaseRealBanditDataset):
         context = []
         segments = []
         selected_actions = []
+        batches = []
 
         for i, user_idx in tqdm(
             enumerate(user_indices),
@@ -449,17 +467,24 @@ class DeezerDataset(BaseRealBanditDataset):
                 if policy.policy_type == "contextfree":
                     policy.update_params(action=action, reward=reward)
                 elif policy.policy_type == "contextual":
-                    policy.update_params(action=action, reward=reward, 
-                                         context=self.user_features[user_idx])
+                    policy.update_params(
+                        action=action,
+                        reward=reward,
+                        context=self.user_features[user_idx],
+                    )
                 elif policy.policy_type == "segmented":
-                    policy.update_params(action=action, reward=reward,
-                                         segment=self.user_segments[user_idx])
+                    policy.update_params(
+                        action=action,
+                        reward=reward,
+                        segment=self.user_segments[user_idx],
+                    )
                 rewards.append(reward)
                 positions.append(position)
                 actions.append(action)
                 context.append(self.user_features[user_idx])
                 segments.append(self.user_segments[user_idx])
                 selected_actions.append(all_item_indices[i])
+                batches.append(i // users_per_batch)
 
         actions = np.array(actions)
         rewards = np.array(rewards)
@@ -469,6 +494,7 @@ class DeezerDataset(BaseRealBanditDataset):
         action_context = self.playlist_features[actions, :]
         n_rounds = len(actions)
         selected_actions = np.array(selected_actions)
+        batches = np.array(batches)
 
         return {
             "action": actions,
@@ -482,5 +508,6 @@ class DeezerDataset(BaseRealBanditDataset):
             "policy": policy,
             "selected_actions": selected_actions,
             "users": user_indices,
-            "segments": segments
+            "segments": segments,
+            "batches": batches,
         }
