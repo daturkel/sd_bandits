@@ -292,11 +292,14 @@ class DeezerDataset(BaseRealBanditDataset):
         rewards_uncascaded = rng.binomial(n=1, p=all_probabilities)
 
         relevant_user_features = self.user_features[user_indices, :]
+        
+        relevant_user_segments = self.user_segments[user_indices]
 
         actions = []
         rewards = []
         positions = []
         context = []
+        segments = []
 
         for row in tqdm(range(rewards_uncascaded.shape[0]), desc="Generating feedback"):
             positions_to_observe = self._get_positions_to_observe(
@@ -309,11 +312,14 @@ class DeezerDataset(BaseRealBanditDataset):
                 positions.append(position)
                 actions.append(all_item_indices[row, position])
                 context.append(relevant_user_features[row])
+                segments.append(relevant_user_segments.iloc[row])
+                
 
         actions = np.array(actions)
         rewards = np.array(rewards)
         positions = np.array(positions)
         context = np.array(context)
+        segments = np.array(segments)
         action_context = self.playlist_features[actions, :]
         pscore = np.array([1 / self.playlist_features.shape[0] for i in actions])
         n_rounds = len(actions)
@@ -328,6 +334,7 @@ class DeezerDataset(BaseRealBanditDataset):
             "n_rounds": n_rounds,
             "n_actions": self.n_actions,
             "users": user_indices,
+            "segments": segments
         }
 
     def _obtain_batch_bandit_feedback_on_policy(
@@ -400,12 +407,11 @@ class DeezerDataset(BaseRealBanditDataset):
         all_probabilities = []
         all_item_indices = []
 
-        relevant_user_features = self.user_features[user_indices, :]
-
         actions = []
         rewards = []
         positions = []
         context = []
+        segments = []
         selected_actions = []
 
         for i, user_idx in tqdm(
@@ -415,8 +421,10 @@ class DeezerDataset(BaseRealBanditDataset):
         ):
             if policy.policy_type == "contextfree":
                 item_indices = policy.select_action()
-            else:
+            elif policy.policy_type == "contextual":
                 item_indices = policy.select_action(self.user_features[user_idx])
+            elif policy.policy_type == "segmented":
+                item_indices = policy.select_action(self.user_segments[user_idx])
             all_item_indices.append(item_indices)
             this_user_features = self.user_features[user_idx, :]
             these_items_features = self.playlist_features[item_indices, :]
@@ -438,17 +446,26 @@ class DeezerDataset(BaseRealBanditDataset):
                     policy.batch_size = policy.n_trial + 1
                 reward = rewards_uncascaded[position]
                 action = item_indices[position]
-                policy.update_params(action=action, reward=reward)
+                if policy.policy_type == "contextfree":
+                    policy.update_params(action=action, reward=reward)
+                elif policy.policy_type == "contextual":
+                    policy.update_params(action=action, reward=reward, 
+                                         context=self.user_features[user_idx])
+                elif policy.policy_type == "segmented":
+                    policy.update_params(action=action, reward=reward,
+                                         segment=self.user_segments[user_idx])
                 rewards.append(reward)
                 positions.append(position)
                 actions.append(action)
                 context.append(self.user_features[user_idx])
+                segments.append(self.user_segments[user_idx])
                 selected_actions.append(all_item_indices[i])
 
         actions = np.array(actions)
         rewards = np.array(rewards)
         positions = np.array(positions)
         context = np.array(context)
+        segments = np.array(segments)
         action_context = self.playlist_features[actions, :]
         n_rounds = len(actions)
         selected_actions = np.array(selected_actions)
@@ -465,4 +482,5 @@ class DeezerDataset(BaseRealBanditDataset):
             "policy": policy,
             "selected_actions": selected_actions,
             "users": user_indices,
+            "segments": segments
         }
