@@ -2,6 +2,7 @@ import numpy as np
 from obp.policy import BaseContextFreePolicy
 from dataclasses import dataclass
 from copy import deepcopy
+from math import log
 
 @dataclass
 class ExploreThenCommit(BaseContextFreePolicy):
@@ -88,6 +89,133 @@ class ExploreThenCommit(BaseContextFreePolicy):
         if self.n_trial % self.batch_size == 0:
             self.action_counts = np.copy(self.action_counts_temp)
             self.reward_counts = np.copy(self.reward_counts_temp)
+            
+@dataclass
+class KLUpperConfidenceBound(BaseContextFreePolicy):
+    """Upper Confidence Bound using Kullback-Leibler divergence.
+    
+
+    Parameters
+    ----------
+    n_actions: int
+        Number of actions.
+
+    len_list: int, default=1
+        Length of a list of actions recommended in each impression.
+        When Open Bandit Dataset is used, 3 should be set.
+
+    batch_size: int, default=1
+        Number of samples used in a batch parameter update.
+    
+    precision: float, default=1e-6
+        The precision for KL divergence
+        
+    eps: float, default=1e-15
+        The epsilon value for UCB
+
+    random_state: int, default=None
+        Controls the random seed in sampling actions.
+
+    policy_name: str, default=f'kl_ucb'.
+        Name of bandit policy.
+        
+        
+    CITE: Used Deezer's ETC implementation. Not an official citation but want to
+    put that in here
+    """
+
+    precision: float = 1e-6
+    eps: float = 1e-15
+    policy_name: str = ""
+    
+    def __post_init__(self) -> None:
+        """Initialize Class."""
+        assert isinstance(self.precision, float), "precision is not a float"
+        assert isinstance(self.eps, float), "eps is not a float"
+        if self.policy_name == "":
+            self.policy_name = f"kl_ucb"
+            
+        self.action_scores = np.zeros(self.n_actions)
+        self.action_scores_temp = np.zeros(self.n_actions)
+        super().__post_init__()
+
+    def select_action(self) -> np.ndarray:
+        """Select a list of actions.
+
+        Returns
+        ----------
+        selected_actions: array-like, shape (len_list, )
+            List of selected actions.
+        """
+        
+        random_score = self.random_.random(self.n_actions) # to break ties
+
+        # rank the actions based on action_scores and random_score to break ties
+        ranked_actions = np.lexsort((random_score, -self.action_scores))
+        return ranked_actions[: self.len_list]
+
+
+    def update_params(self, action: int, reward: float) -> None:
+        """Update policy parameters.
+
+        Parameters
+        ----------
+        action: int
+            Selected action by the policy.
+
+        reward: float
+            Observed reward for the chosen action and position.
+        """
+        self.n_trial += 1
+        self.action_counts_temp[action] += 1
+        n, old_reward = self.action_counts_temp[action], self.reward_counts_temp[action]
+        self.reward_counts_temp[action] = (old_reward * (n - 1) / n) + (reward / n)
+        self.action_scores_temp[action] = self.scoring_function(self.reward_counts_temp[action]*self.action_counts_temp[action],
+                                                                self.action_counts_temp[action], self.action_counts_temp.sum())
+        if self.n_trial % self.batch_size == 0:
+            self.action_counts = np.copy(self.action_counts_temp)
+            self.reward_counts = np.copy(self.reward_counts_temp)
+            self.action_scores = np.copy(self.action_scores_temp)
+            
+    def kl(self, x, y):
+        """KL divergence of x and y
+        CITE: https://github.com/deezer/carousel_bandits/blob/master/policies.py#L85-L89
+        """
+        x = min(max(x, self.eps), 1 - self.eps)
+        y = min(max(y, self.eps), 1 - self.eps)
+        return x * log(x / y) + (1 - x) * log((1 - x) / (1 - y))
+
+    def scoring_function(self, n_success: int, n: int, t: int):
+        """Scoring function for UCB
+        
+        Parameters
+        ----------
+        n_success: int
+            Number of times the item being scored has been selected
+        
+        n: int
+            Number of times the item being scored has been shown
+        
+        t: int
+            Number of total items that have been displayed across all users
+        
+        CITE: From https://github.com/deezer/carousel_bandits/blob/master/policies.py#L90-L105
+        """
+        if n == 0:
+            return 1.0
+        p = n_success / n
+        value = p
+        u = 1
+        threshold = log(t) / n
+        _count_iteration = 0
+        while _count_iteration < 50 and u - value > self.precision:
+            _count_iteration += 1
+            m = (value + u) * 0.5
+            if self.kl(p, m) > threshold:
+                u = m
+            else:
+                value = m
+        return (value + u) * 0.5
 
 
 @dataclass
