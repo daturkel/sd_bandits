@@ -4,6 +4,7 @@ import logging
 import os
 from pathlib import Path
 from time import perf_counter
+from typing import Any, Tuple, Union
 import yaml
 
 from obp.policy import (
@@ -214,7 +215,7 @@ def build_obj_spec(
     return obj_dict
 
 
-def _make_obj(obj_dict, return_dict):
+def _make_obj(obj_dict: dict, return_dict: bool) -> Union[Any, Tuple[Any, dict]]:
     obj_name = obj_dict["name"]
     obj_type = obj_dict["type"]
     obj_key = obj_dict["key"]
@@ -237,7 +238,9 @@ def _make_obj(obj_dict, return_dict):
         return obj
 
 
-def load_obj_from_spec(obj_dict_path, return_dict=False):
+def load_obj_from_spec(
+    obj_dict_path: str, return_dict=False
+) -> Union[Any, Tuple[Any, dict]]:
     """
     Loads policy/estimator from spec dict
 

@@ -83,11 +83,21 @@ class OBDExperiment(Experiment):
 
     @log_performance
     def obtain_feedback(self):
+        """
+        Get logged feedback from baseline dataset.
+
+        """
         logging.info("Obtaining logged feedback")
         self.logged_feedback = self.dataset.obtain_batch_bandit_feedback()
 
     @log_performance
     def fit_regression(self):
+        """
+        If a regression_base_model was provided at instantiation, fit that base
+        model to the logged feedback so it can be used for estimators which
+        require it.
+
+        """
         logging.info("Fitting regression model")
         self.regression_model = RegressionModel(
             self.regression_base_model,
@@ -107,6 +117,10 @@ class OBDExperiment(Experiment):
 
     @log_performance
     def run_simulations(self):
+        """
+        For each provided policy, simulate learning it off of logged feedback.
+
+        """
         logging.info("Running simulations")
         for i, policy in enumerate(self.policies):
             logging.info(
@@ -118,6 +132,12 @@ class OBDExperiment(Experiment):
 
     @log_performance
     def estimate_rewards(self):
+        """
+        For logged baseline and for simulated policies, calculate a confidence
+        interval of expected rewards under that policy. For the simulated policies,
+        use provided offline policy estimator.
+
+        """
         logging.info("Estimating rewards")
         logging.info("Estimating reward confidence interval for logged feedback")
         self.rewards["logged"] = estimate_confidence_interval_by_bootstrap(
@@ -142,6 +162,11 @@ class OBDExperiment(Experiment):
             self.rewards[policy_name] = self.estimator.estimate_interval(**est_args)
 
     def _run_experiment(self):
+        """
+        Hidden function which is called by user-facing run_experiment() method. Runs
+        all relevant functions in order.
+
+        """
         self.obtain_feedback()
         if self.regression_base_model is not None:
             self.fit_regression()
@@ -155,18 +180,37 @@ class DeezerExperiment(Experiment):
         dataset: DeezerDataset,
         policies: List[Union[BaseContextFreePolicy, BaseContextualPolicy]],
     ):
+        """Class to encapsulate Deezer experiments.
+
+        Parameters
+        ----------
+        dataset : DeezerDataset
+            The dataset that the experiment will run on.
+        policies : List[Union[BaseContextFreePolicy, BaseContextualPolicy]]
+            List of policies to be run on this dataset.
+
+        """
         super().__init__(dataset, policies)
         self.random_feedback: Optional[dict] = None
         self.policy_feedback = dict()
 
     @log_performance
     def obtain_random_feedback(self):
+        """
+        Get feedback from simulating a random action policy.
+
+        """
         logging.info("Obtaining random baseline feedback")
         self.dataset: DeezerDataset
         self.random_feedback = self.dataset.obtain_batch_bandit_feedback()
 
     @log_performance
     def learn_and_obtain_policy_feedback(self):
+        """
+        For each provided policy, use Deezer's provided click probabilities to learn
+        a policy online and collected feedback as we learn.
+
+        """
         logging.info("Learning and obtaining policy feedback")
         for i, policy in enumerate(self.policies):
             logging.info(
@@ -178,6 +222,10 @@ class DeezerExperiment(Experiment):
 
     @log_performance
     def get_policy_rewards(self):
+        """
+        For random baseline and for each policy, calculate a confidence interval of the
+        expected reward.
+        """
         logging.info(
             "Estimating reward confidence interval for random baseline feedback"
         )
@@ -197,6 +245,11 @@ class DeezerExperiment(Experiment):
             )
 
     def _run_experiment(self):
+        """
+        Hidden function which is called by user-facing run_experiment() method. Runs
+        all relevant functions in order.
+
+        """
         self.obtain_random_feedback()
         self.learn_and_obtain_policy_feedback()
         self.get_policy_rewards()
