@@ -16,7 +16,7 @@ from obp.ope.estimators import DirectMethod, DoublyRobust, DoublyRobustWithShrin
                                SwitchDoublyRobust, SwitchInverseProbabilityWeighting
 
 from obp.dataset import OpenBanditDataset
-from sd_bandits.deezer.dataset import DeezerDataset
+from sd_bandits.obp_extensions.dataset import DeezerDataset
 
 policy_dict = {'BernoulliTS':BernoulliTS,
                'EpsilonGreedy':EpsilonGreedy,
@@ -198,47 +198,3 @@ def build_experiment(experiment_name, policy, estimator, dataset, policy_params,
     with open(os.path.join(experiment_dir, 'script.sbatch'),'w') as file:
         file.write(slurm_script)
         
-def build_experiment(experiment_name, policy, estimator, dataset, policy_params,
-                     estimator_params, dataset_params, output_folder='./policy_yamls/',
-                     slurm_output='./outputs/'):
-    '''
-    Builds full experiment spec folder w/ policy, estimator, and dataset, as well as a
-    slurm script
-    
-    Parameters
-    ------------
-    experiment_name: str
-        Name of the experiment dir
-    policy: str
-        Which obp policy to use
-    estimator: str
-        Which obp estimator to use
-    dataset: str
-        Which dataset to use ('obp' or 'deezer')
-    policy_params: dict
-        Dict for any parameters to construct the policy
-    estimator_params:
-        Dict for any parameters to construct the policy
-    dataset_params:
-        Dict for any parameters to contruct the ataset object
-    output_folder: str
-        Directory that will contain experiment directory
-    Returns
-    ------------
-    None
-    '''
-    
-    policy_dict = build_obj_spec(policy, policy_params, experiment_name=experiment_name,\
-                                 obj_type='policy', output=output_folder)
-    estimator_dict = build_obj_spec(estimator, estimator_params, experiment_name=experiment_name,\
-                                    obj_type='estimator', output=output_folder)
-    dataset_dict = build_obj_spec(dataset, dataset_params, experiment_name=experiment_name,\
-                                  obj_type='dataset', output=output_folder)
-    
-    experiment_dir = os.path.join(output_folder, experiment_name)
-    slurm_output = os.path.join(slurm_output, experiment_name+'.out')
-    slurm_script = script_shell.format(slurm_output, experiment_dir)
-    
-    with open(os.path.join(experiment_dir, 'script.sbatch'),'w') as file:
-        file.write(slurm_script)
-    print(slurm_script)
