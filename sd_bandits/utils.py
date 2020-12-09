@@ -214,6 +214,26 @@ def build_obj_spec(
     return obj_dict
 
 
+def _make_obj(obj_dict, return_dict):
+    obj_name = obj_dict["name"]
+    obj_type = obj_dict["type"]
+    obj_key = obj_dict["key"]
+    parameter_dict = obj_dict["parameters"]
+
+    if obj_type == "policy":
+        obj = policy_dict[obj_key](**parameter_dict)
+    elif obj_type == "estimator":
+        obj = estimator_dict[obj_key](**parameter_dict)
+    elif obj_type == "dataset":
+        parameter_dict["data_path"] = Path(parameter_dict["data_path"])
+        obj = dataset_dict[obj_key](**parameter_dict)
+
+    if return_dict:
+        return obj, obj_dict
+    else:
+        return obj
+
+
 def load_obj_from_spec(obj_dict_path, return_dict=False):
     """
     Loads policy/estimator from spec dict
@@ -234,24 +254,15 @@ def load_obj_from_spec(obj_dict_path, return_dict=False):
 
     """
     with open(obj_dict_path, "r") as file:
-        obj_dict = yaml.load(file, Loader=yaml.FullLoader)
+        spec_obj = yaml.load(file, Loader=yaml.FullLoader)
 
-    obj_name = obj_dict["name"]
-    obj_type = obj_dict["type"]
-    obj_key = obj_dict["key"]
-    parameter_dict = obj_dict["parameters"]
-
-    if obj_type == "policy":
-        obj = policy_dict[obj_key](**parameter_dict)
-    elif obj_type == "estimator":
-        obj = estimator_dict[obj_key](**parameter_dict)
-    elif obj_type == "dataset":
-        parameter_dict["data_path"] = Path(parameter_dict["data_path"])
-        obj = dataset_dict[obj_key](**parameter_dict)
-    if return_dict:
-        return obj, obj_dict
+    if isinstance(spec_obj, dict):
+        return _make_obj(spec_obj, return_dict)
     else:
-        return obj
+        results = []
+        for obj in spec_obj:
+            results.append(_make_obj(obj, return_dict))
+        return results
 
 
 def build_experiment(
