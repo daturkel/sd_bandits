@@ -136,7 +136,7 @@ class DeezerDataset(BaseRealBanditDataset):
     def obtain_batch_bandit_feedback(
         self,
         n_batches: int = 100,
-        users_per_batch: int = 20000,
+        users_per_batch: int = 1000,
         seed: int = 1,
         cascade: bool = True,
         cascade_at: str = "first",
