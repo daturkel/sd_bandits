@@ -38,6 +38,7 @@ class Experiment:
         self.rewards = {}
 
     def run_experiment(self):
+        logging.info("Running experiment")
         tic = perf_counter()
         result = self._run_experiment()
         toc = perf_counter()

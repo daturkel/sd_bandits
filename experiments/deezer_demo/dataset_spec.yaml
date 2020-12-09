@@ -1,0 +1,6 @@
+key: deezer
+name: deezer_demo
+parameters:
+  user_features: "/Users/danturkel/Dropbox (Personal)/Grad School/Search and Discovery/sd_bandits/data/deezer_carousel_bandits/user_features.csv"
+  playlist_features: "/Users/danturkel/Dropbox (Personal)/Grad School/Search and Discovery/sd_bandits/data/deezer_carousel_bandits/playlist_features.csv"
+type: dataset

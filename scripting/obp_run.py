@@ -60,7 +60,9 @@ if __name__ == "__main__":
 
     experiment.run_experiment()
 
-    logging.info("Writing output to results results.pickle")
+    logging.info(
+        f"Writing output to results {os.path.join(params.experiment_dir,'results.pickle')}"
+    )
     with open(os.path.join(params.experiment_dir, "results.pickle"), "wb") as file:
         pickle.dump(experiment, file)
     logging.info("Bye!")

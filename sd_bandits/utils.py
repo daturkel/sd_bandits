@@ -225,7 +225,10 @@ def _make_obj(obj_dict, return_dict):
     elif obj_type == "estimator":
         obj = estimator_dict[obj_key](**parameter_dict)
     elif obj_type == "dataset":
-        parameter_dict["data_path"] = Path(parameter_dict["data_path"])
+        try:
+            parameter_dict["data_path"] = Path(parameter_dict["data_path"])
+        except KeyError:
+            pass
         obj = dataset_dict[obj_key](**parameter_dict)
 
     if return_dict:
