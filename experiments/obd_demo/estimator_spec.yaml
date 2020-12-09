@@ -1,0 +1,5 @@
+key: DoublyRobustWithShrinkage
+name: obd_demo
+parameters:
+  lambda_: 1
+type: estimator

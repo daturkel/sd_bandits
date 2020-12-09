@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pickle
 
 data/open_bandit_dataset
 data/deezer_carousel_bandits

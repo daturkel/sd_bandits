@@ -1,0 +1,7 @@
+key: obp
+name: obd_demo
+parameters:
+  behavior_policy: random
+  campaign: men
+  data_path: /Users/danturkel/Dropbox (Personal)/Grad School/Search and Discovery/sd_bandits/data/open_bandit_dataset
+type: dataset
