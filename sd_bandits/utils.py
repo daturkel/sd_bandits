@@ -1,8 +1,10 @@
-import os
+from functools import wraps
 from datetime import datetime
-import yaml
-import sys
+import logging
+import os
 from pathlib import Path
+from time import perf_counter
+import yaml
 
 from obp.policy import (
     BernoulliTS,
@@ -74,6 +76,77 @@ estimator_dict = {
 }
 
 dataset_dict = {"obp": OpenBanditDataset, "deezer": DeezerDataset}
+
+estimator_args_dict = {
+    "DirectMethod": ["position", "action_dist", "estimated_rewards_by_reg_model"],
+    "DoublyRobust": [
+        "reward",
+        "action",
+        "position",
+        "pscore",
+        "action_dist",
+        "estimated_rewards_by_reg_model",
+    ],
+    "DoublyRobustWithShrinkage": [
+        "reward",
+        "action",
+        "position",
+        "pscore",
+        "action_dist",
+        "estimated_rewards_by_reg_model",
+    ],
+    "InverseProbabilityWeighting": [
+        "reward",
+        "action",
+        "position",
+        "pscore",
+        "action_dist",
+    ],
+    "ReplayMethod": ["reward", "action", "position", "action_dist"],
+    "SelfNormalizedDoublyRobust": [
+        "reward",
+        "action",
+        "position",
+        "pscore",
+        "action_dist",
+        "estimated_rewards_by_reg_model",
+    ],
+    "SelfNormalizedInverseProbabilityWeighting": [
+        "reward",
+        "action",
+        "position",
+        "pscore",
+        "action_dist",
+    ],
+    "SwitchDoublyRobust": [
+        "reward",
+        "action",
+        "position",
+        "pscore",
+        "action_dist",
+        "estimated_rewards_by_reg_model",
+    ],
+    "SwitchInverseProbabilityWeighting": [
+        "reward",
+        "action",
+        "position",
+        "pscore",
+        "action_dist",
+        "estimated_rewards_by_reg_model",
+    ],
+}
+
+
+def log_performance(fn):
+    @wraps(fn)
+    def performance_wrapper(*args, **kwargs):
+        tic = perf_counter()
+        result = fn(*args, **kwargs)
+        toc = perf_counter()
+        logging.info(f"Done in {round(toc - tic, 2)} seconds")
+        return result
+
+    return performance_wrapper
 
 
 def build_obj_spec(
