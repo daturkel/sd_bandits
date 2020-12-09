@@ -188,9 +188,9 @@ class DeezerExperiment(Experiment):
                 f"[{i + 1} of {len(self.policies)}] Estimating reward confindence interval for {policy.policy_name} feedback"
             )
             self.rewards[
-                policy_policy.name
+                policy.policy_name
             ] = estimate_confidence_interval_by_bootstrap(
-                self.policy_feedback[policy.policy_name],
+                self.policy_feedback[policy.policy_name]["reward"],
                 n_bootstrap_samples=100,
                 random_state=i,
             )
