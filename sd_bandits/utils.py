@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Tuple, Union
+from typing import Any, List, Tuple, Union
 import yaml
 
 from obp.policy import (
@@ -215,32 +215,31 @@ def build_obj_spec(
     return obj_dict
 
 
-def _make_obj(obj_dict: dict, return_dict: bool) -> Union[Any, Tuple[Any, dict]]:
+def _make_obj(obj_dict: dict, obj_type: str) -> Tuple[Any, dict]:
     obj_name = obj_dict["name"]
-    obj_type = obj_dict["type"]
     obj_key = obj_dict["key"]
-    parameter_dict = obj_dict["parameters"]
+    parameter_dict = obj_dict.get("parameters", {})
 
     if obj_type == "policy":
-        obj = policy_dict[obj_key](**parameter_dict)
+        payload = policy_dict[obj_key](**parameter_dict)
     elif obj_type == "estimator":
-        obj = estimator_dict[obj_key](**parameter_dict)
+        payload = estimator_dict[obj_key](**parameter_dict)
     elif obj_type == "dataset":
         try:
             parameter_dict["data_path"] = Path(parameter_dict["data_path"])
         except KeyError:
             pass
-        obj = dataset_dict[obj_key](**parameter_dict)
+        payload = dataset_dict[obj_key](**parameter_dict)
 
-    if return_dict:
-        return obj, obj_dict
-    else:
-        return obj
+    meta = obj_dict.get("meta", {})
+    obj = (payload, meta)
+
+    return obj
 
 
 def load_obj_from_spec(
-    obj_dict_path: str, return_dict=False
-) -> Union[Any, Tuple[Any, dict]]:
+    obj_dict_path: str, obj_type: str
+) -> Union[Tuple[Any, dict], List[Tuple[Any, dict]]]:
     """
     Loads policy/estimator from spec dict
 
@@ -248,26 +247,23 @@ def load_obj_from_spec(
     ----------
     obj_dict_path: str
         Path to configuration dict from build_obj_spec()
-    return_dict: bool
-        If true, returns the config dict
 
     Returns
     -------
-    obj: obp.policy/obp.estimator/dataset
-        The policy/estimator loaded from the spec dict
-    config_dict: dict (optional)
-        The spec dict
+    obj: Union[Tuple[Any, dict], List[Tuple[Any, dict]]]:
+        A tuple or list of tuples where the first item of each tuple is the object
+        of interest and the second is a dictionary of additional options.
 
     """
     with open(obj_dict_path, "r") as file:
         spec_obj = yaml.load(file, Loader=yaml.FullLoader)
 
     if isinstance(spec_obj, dict):
-        return _make_obj(spec_obj, return_dict)
+        return _make_obj(spec_obj, obj_type)
     else:
         results = []
         for obj in spec_obj:
-            results.append(_make_obj(obj, return_dict))
+            results.append(_make_obj(obj, obj_type))
         return results
 
 

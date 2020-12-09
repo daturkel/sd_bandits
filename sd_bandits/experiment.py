@@ -1,3 +1,4 @@
+from collections import defaultdict
 import logging
 from time import perf_counter
 from typing import List, Optional, Union
@@ -34,8 +35,8 @@ class Experiment:
         self.dataset = dataset
         self.policies = policies
 
-        self.actions = {}
-        self.rewards = {}
+        self.policy_feedback = defaultdict(dict)
+        self.reward_summary = {}
 
     def run_experiment(self):
         logging.info("Running experiment")
@@ -77,9 +78,8 @@ class OBDExperiment(Experiment):
         ]
         self.regression_base_model = regression_base_model
 
-        self.logged_feedback: Optional[dict] = None
         self.regression_model: Optional[RegressionModel] = None
-        self.estimated_rewards: Optional[np.array] = None
+        self.estimated_rewards_by_reg_model: Optional[np.array] = None
 
     @log_performance
     def obtain_feedback(self):
@@ -88,7 +88,7 @@ class OBDExperiment(Experiment):
 
         """
         logging.info("Obtaining logged feedback")
-        self.logged_feedback = self.dataset.obtain_batch_bandit_feedback()
+        self.policy_feedback["logged"] = self.dataset.obtain_batch_bandit_feedback()
 
     @log_performance
     def fit_regression(self):
@@ -105,12 +105,12 @@ class OBDExperiment(Experiment):
             len_list=self.dataset.len_list,
             action_context=self.dataset.action_context,
         )
-        self.estimated_rewards = self.regression_model.fit_predict(
-            context=self.logged_feedback["context"],
-            action=self.logged_feedback["action"],
-            reward=self.logged_feedback["reward"],
-            position=self.logged_feedback["position"],
-            pscore=self.logged_feedback["pscore"],
+        self.estimated_rewards_by_reg_model = self.regression_model.fit_predict(
+            context=self.policy_feedback["logged"]["context"],
+            action=self.policy_feedback["logged"]["action"],
+            reward=self.policy_feedback["logged"]["reward"],
+            position=self.policy_feedback["logged"]["position"],
+            pscore=self.policy_feedback["logged"]["pscore"],
             n_folds=3,
             random_state=0,
         )
@@ -122,12 +122,12 @@ class OBDExperiment(Experiment):
 
         """
         logging.info("Running simulations")
-        for i, policy in enumerate(self.policies):
+        for i, (policy, _) in enumerate(self.policies):
             logging.info(
                 f"[{i + 1} of {len(self.policies)}] Running simulation for {policy.policy_name}"
             )
-            self.actions[policy.policy_name] = run_bandit_simulation(
-                self.logged_feedback, policy
+            self.policy_feedback[policy.policy_name]["action"] = run_bandit_simulation(
+                self.policy_feedback["logged"], policy
             )
 
     @log_performance
@@ -140,26 +140,41 @@ class OBDExperiment(Experiment):
         """
         logging.info("Estimating rewards")
         logging.info("Estimating reward confidence interval for logged feedback")
-        self.rewards["logged"] = estimate_confidence_interval_by_bootstrap(
-            self.logged_feedback["reward"],
+        self.reward_summary["logged"] = estimate_confidence_interval_by_bootstrap(
+            self.policy_feedback["logged"]["reward"],
             n_bootstrap_samples=100,
-            random_state=0,
+            random_state=10,
         )
 
-        for i, (policy_name, actions) in enumerate(self.actions.items()):
-            est_args = {}
-            for key in self.estimator_required_args:
-                if key == "action_dist":
-                    est_args[key] = self.actions[policy_name]
-                elif key == "estimated_rewards_by_reg_model":
-                    est_args[key] = self.estimated_rewards
-                else:
-                    est_args[key] = self.logged_feedback[key]
+        for i, (policy_name, feedback) in enumerate(self.policy_feedback.items()):
+            if policy_name == "logged":
+                logging.info(
+                    f"[{i + 1} of {len(self.policy_feedback)}] Estimating reward confidence interval for {policy_name}"
+                )
+                reward = feedback["reward"]
+            else:
+                logging.info(
+                    f"[{i + 1} of {len(self.policy_feedback)}] Estimating rewards and reward confidence interval for {policy_name}"
+                )
+                est_args = {}
+                for key in self.estimator_required_args:
+                    # use the action dist when available (e.g. for baseline), else use actions (e.g. for estimated policies)
+                    if key == "action_dist":
+                        est_args[key] = feedback["action"]
+                    elif key == "estimated_rewards_by_reg_model":
+                        est_args[key] = self.estimated_rewards_by_reg_model
+                    else:
+                        est_args[key] = self.policy_feedback["logged"][key]
+                reward = self.estimator._estimate_round_rewards(**est_args)
+                self.policy_feedback[policy_name]["reward"] = reward
 
-            logging.info(
-                f"[{i + 1} of {len(self.actions)}] Estimating reward confidence interval for {policy_name}"
+            self.reward_summary[
+                policy_name
+            ] = estimate_confidence_interval_by_bootstrap(
+                reward,
+                n_bootstrap_samples=100,
+                random_state=10,
             )
-            self.rewards[policy_name] = self.estimator.estimate_interval(**est_args)
 
     def _run_experiment(self):
         """
@@ -186,23 +201,15 @@ class DeezerExperiment(Experiment):
         ----------
         dataset : DeezerDataset
             The dataset that the experiment will run on.
-        policies : List[Union[BaseContextFreePolicy, BaseContextualPolicy]]
-            List of policies to be run on this dataset.
+        policies : List[Tuple[Union[BaseContextFreePolicy, BaseContextualPolicy],dict]]
+            List of policies to be run on this dataset. Each policy is a tuple of the policy
+            object and an additional dictionary of options that will be passed to
+            obtain_batch_bandit_feedback.
+        policy_dict : dict (optional)
+            Dictionary containing contents of policy_spec.yaml. Each policy's online_parameters section will be passed to obtain_batch_bandit_feedback.
 
         """
         super().__init__(dataset, policies)
-        self.random_feedback: Optional[dict] = None
-        self.policy_feedback = dict()
-
-    @log_performance
-    def obtain_random_feedback(self):
-        """
-        Get feedback from simulating a random action policy.
-
-        """
-        logging.info("Obtaining random baseline feedback")
-        self.dataset: DeezerDataset
-        self.random_feedback = self.dataset.obtain_batch_bandit_feedback()
 
     @log_performance
     def learn_and_obtain_policy_feedback(self):
@@ -212,13 +219,21 @@ class DeezerExperiment(Experiment):
 
         """
         logging.info("Learning and obtaining policy feedback")
-        for i, policy in enumerate(self.policies):
+        for i, (policy, policy_meta) in enumerate(self.policies):
             logging.info(
                 f"[{i + 1} of {len(self.policies)}] Learning and obtaining {policy.policy_name} feedback"
             )
-            self.policy_feedback[
-                policy.policy_name
-            ] = self.dataset.obtain_batch_bandit_feedback(policy=policy)
+            if policy_meta:
+                self.policy_feedback[
+                    policy.policy_name
+                ] = self.dataset.obtain_batch_bandit_feedback(
+                    policy=policy,
+                    **policy_meta,
+                )
+            else:
+                self.policy_feedback[
+                    policy.policy_name
+                ] = self.dataset.obtain_batch_bandit_feedback(policy=policy)
 
     @log_performance
     def get_policy_rewards(self):
@@ -229,14 +244,11 @@ class DeezerExperiment(Experiment):
         logging.info(
             "Estimating reward confidence interval for random baseline feedback"
         )
-        self.rewards["random"] = estimate_confidence_interval_by_bootstrap(
-            self.random_feedback["reward"], n_bootstrap_samples=100, random_state=0
-        )
-        for i, policy in enumerate(self.policies):
+        for i, (policy, _) in enumerate(self.policies):
             logging.info(
                 f"[{i + 1} of {len(self.policies)}] Estimating reward confindence interval for {policy.policy_name} feedback"
             )
-            self.rewards[
+            self.reward_summary[
                 policy.policy_name
             ] = estimate_confidence_interval_by_bootstrap(
                 self.policy_feedback[policy.policy_name]["reward"],
@@ -250,6 +262,5 @@ class DeezerExperiment(Experiment):
         all relevant functions in order.
 
         """
-        self.obtain_random_feedback()
         self.learn_and_obtain_policy_feedback()
         self.get_policy_rewards()

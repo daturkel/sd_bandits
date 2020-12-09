@@ -40,18 +40,16 @@ if __name__ == "__main__":
 
     logging.info("Building dataset")
     dataset_spec_path = os.path.join(params.experiment_dir, "dataset_spec.yaml")
-    dataset = utils.load_obj_from_spec(dataset_spec_path)
+    dataset, _ = utils.load_obj_from_spec(dataset_spec_path, "dataset")
 
     logging.info("Building policies")
     policy_spec_path = os.path.join(params.experiment_dir, "policy_spec.yaml")
-    policies = utils.load_obj_from_spec(policy_spec_path)
+    policies = utils.load_obj_from_spec(policy_spec_path, "policy")
 
     if os.path.exists(os.path.join(params.experiment_dir, "estimator_spec.yaml")):
         logging.info("Building estimators")
         estimator_spec_path = os.path.join(params.experiment_dir, "estimator_spec.yaml")
-        estimator, estimator_dict = utils.load_obj_from_spec(
-            estimator_spec_path, return_dict=True
-        )
+        estimator, _ = utils.load_obj_from_spec(estimator_spec_path, "estimator")
 
     if isinstance(dataset, DeezerDataset):
         experiment = DeezerExperiment(dataset, policies)
