@@ -4,7 +4,6 @@ import yaml
 import sys
 from pathlib import Path
 
-
 from obp.policy import (
     BernoulliTS,
     EpsilonGreedy,
@@ -16,7 +15,6 @@ from obp.policy import (
     LogisticTS,
     LogisticUCB,
 )
-
 from obp.ope.estimators import (
     DirectMethod,
     DoublyRobust,
@@ -28,9 +26,28 @@ from obp.ope.estimators import (
     SwitchDoublyRobust,
     SwitchInverseProbabilityWeighting,
 )
-
 from obp.dataset import OpenBanditDataset
+
 from sd_bandits.obp_extensions.dataset import DeezerDataset
+
+SHELL_SCRIPT = """#!/bin/bash
+#SBATCH --job-name=obp
+#SBATCH --nodes=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16GB
+#SBATCH --time=100:00:00
+#SBATCH --output="{}.out"
+#SBATCH --export=NONE
+
+module purge
+module load anaconda3/4.3.1
+
+source activate sd_bandits_env
+
+cd ~/sd_bandits/scripting/
+
+python opb_run.py --experiment-dir '{}'
+"""
 
 policy_dict = {
     "BernoulliTS": BernoulliTS,
@@ -88,9 +105,10 @@ def build_obj_spec(
         Path to directory to store
 
     Returns
-    ------------
+    -------
     obj_dict: dict
         The constructor dict for the object
+
     """
     # Set name via timestamp if not specified
     if obj_type not in ["policy", "estimator", "dataset"]:
@@ -103,11 +121,12 @@ def build_obj_spec(
         experiment_name = "experiment_{}".format(current_time)
 
     # Build dict structure
-    obj_dict = {}
-    obj_dict["name"] = experiment_name
-    obj_dict["type"] = obj_type
-    obj_dict["key"] = obj_key
-    obj_dict["parameters"] = parameter_dict
+    obj_dict = {
+        "name": experiment_name,
+        "type": obj_type,
+        "key": obj_key,
+        "parameters": parameter_dict,
+    }
 
     # Set output folder
     output_folder = os.path.join(output, experiment_name)
@@ -127,17 +146,19 @@ def load_obj_from_spec(obj_dict_path, return_dict=False):
     Loads policy/estimator from spec dict
 
     Parameters
-    ------------
+    ----------
     obj_dict_path: str
         Path to configuration dict from build_obj_spec()
     return_dict: bool
         If true, returns the config dict
+
     Returns
-    ------------
+    -------
     obj: obp.policy/obp.estimator/dataset
         The policy/estimator loaded from the spec dict
     config_dict: dict (optional)
         The spec dict
+
     """
     with open(obj_dict_path, "r") as file:
         obj_dict = yaml.load(file, Loader=yaml.FullLoader)
@@ -160,26 +181,6 @@ def load_obj_from_spec(obj_dict_path, return_dict=False):
         return obj
 
 
-script_shell = """#!/bin/bash
-#SBATCH --job-name=obp
-#SBATCH --nodes=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=16GB
-#SBATCH --time=100:00:00
-#SBATCH --output="{}.out"
-#SBATCH --export=NONE
-
-module purge
-module load anaconda3/4.3.1
-
-source activate sd_bandits_env
-
-cd ~/sd_bandits/scripting/
-
-python opb_run.py --experiment-dir '{}'
-"""
-
-
 def build_experiment(
     experiment_name,
     policy,
@@ -196,7 +197,7 @@ def build_experiment(
     slurm script
 
     Parameters
-    ------------
+    ----------
     experiment_name: str
         Name of the experiment dir
     policy: str
@@ -213,9 +214,11 @@ def build_experiment(
         Dict for any parameters to contruct the ataset object
     output_folder: str
         Directory that will contain experiment directory
+
     Returns
-    ------------
+    -------
     None
+
     """
 
     policy_dict = build_obj_spec(
@@ -242,7 +245,7 @@ def build_experiment(
 
     experiment_dir = os.path.join(output_folder, experiment_name)
     slurm_output = os.path.join(slurm_output, experiment_name + ".out")
-    slurm_script = script_shell.format(slurm_output, experiment_dir)
+    slurm_script = SHELL_SCRIPT.format(slurm_output, experiment_dir)
 
     with open(os.path.join(experiment_dir, "script.sbatch"), "w") as file:
         file.write(slurm_script)
