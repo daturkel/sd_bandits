@@ -1,3 +1,5 @@
+# Copied from https://github.com/st-tech/zr-obp/blob/master/benchmark/ope/benchmark_off_policy_estimators.py
+
 import argparse
 import pickle
 from pathlib import Path
@@ -110,7 +112,7 @@ if __name__ == "__main__":
     n_jobs = args.n_jobs
     random_state = args.random_state
     np.random.seed(random_state)
-    data_path = Path("../open_bandit_dataset")
+    data_path = Path("../data/obd_full")
 
     # prepare path
     log_path = (

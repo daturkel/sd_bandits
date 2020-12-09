@@ -145,7 +145,7 @@ if __name__ == "__main__":
     n_jobs = args.n_jobs
     random_state = args.random_state
     np.random.seed(random_state)
-    data_path = Path("../open_bandit_dataset")
+    data_path = Path("../data/obd_full")
 
     # prepare path
     log_path = (
