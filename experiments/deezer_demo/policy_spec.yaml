@@ -4,7 +4,7 @@
     len_list: 12
     n_actions: 862
   meta:
-    users_per_batch: 2000
+    users_per_batch: 20000
 - key: EpsilonGreedy
   name: deezer_demo
   parameters:
@@ -14,4 +14,4 @@
     n_actions: 862
     policy_name: "egreedy_0.1"
   meta:
-    users_per_batch: 2000
+    users_per_batch: 20000
