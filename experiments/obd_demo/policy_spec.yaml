@@ -2,8 +2,10 @@
   name: obd_demo
   parameters:
     batch_size: 5
-- key: LinUCB
+    is_zozotown_prior: True
+    campaign: all
+- key: EpsilonGreedy
   name: obd_demo
   parameters:
-    dim: 27
+    epsilon: 0.2
     batch_size: 5

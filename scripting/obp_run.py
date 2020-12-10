@@ -50,7 +50,11 @@ if __name__ == "__main__":
     policies = utils.load_obj_from_spec(
         policy_spec_path,
         "policy",
-        extra_parameters={"n_actions": dataset.n_actions, "len_list": dataset.len_list},
+        extra_parameters={
+            "n_actions": dataset.n_actions,
+            "len_list": dataset.len_list,
+            "random_state": 1,
+        },
     )
 
     if os.path.exists(os.path.join(params.experiment_dir, "estimator_spec.yaml")):
