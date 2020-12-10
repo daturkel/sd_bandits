@@ -4,7 +4,7 @@ import logging
 import os
 from pathlib import Path
 from time import perf_counter
-from typing import Any, List, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 import yaml
 
 from obp.policy import (
