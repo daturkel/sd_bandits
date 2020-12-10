@@ -216,7 +216,7 @@ def build_obj_spec(
 
 
 def _make_obj(
-    obj_dict: dict, obj_type: str, extra_parameters: Optional[dict]
+    obj_dict: dict, obj_type: str, extra_parameters: Optional[dict] = None
 ) -> Tuple[Any, dict]:
     obj_name = obj_dict["name"]
     obj_key = obj_dict["key"]
@@ -262,11 +262,11 @@ def load_obj_from_spec(
         spec_obj = yaml.load(file, Loader=yaml.FullLoader)
 
     if isinstance(spec_obj, dict):
-        return _make_obj(spec_obj, obj_type)
+        return _make_obj(spec_obj, obj_type, extra_parameters)
     else:
         results = []
         for obj in spec_obj:
-            results.append(_make_obj(obj, obj_type))
+            results.append(_make_obj(obj, obj_type, extra_parameters))
         return results
 
 
