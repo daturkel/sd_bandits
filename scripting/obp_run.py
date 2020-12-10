@@ -44,7 +44,11 @@ if __name__ == "__main__":
 
     logging.info("Building policies")
     policy_spec_path = os.path.join(params.experiment_dir, "policy_spec.yaml")
-    policies = utils.load_obj_from_spec(policy_spec_path, "policy")
+    policies = utils.load_obj_from_spec(
+        policy_spec_path,
+        "policy",
+        extra_parameters={"n_action": dataset.n_action, "len_list": dataset.len_list},
+    )
 
     if os.path.exists(os.path.join(params.experiment_dir, "estimator_spec.yaml")):
         logging.info("Building estimators")
@@ -62,5 +66,5 @@ if __name__ == "__main__":
         f"Writing output to results {os.path.join(params.experiment_dir,'results.pickle')}"
     )
     with open(os.path.join(params.experiment_dir, "results.pickle"), "wb") as file:
-        pickle.dump(experiment, file)
+        pickle.dump(experiment.output, file)
     logging.info("Bye!")

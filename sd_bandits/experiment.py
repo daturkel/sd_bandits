@@ -264,3 +264,27 @@ class DeezerExperiment(Experiment):
         """
         self.learn_and_obtain_policy_feedback()
         self.get_policy_rewards()
+
+    @property
+    def output(self) -> dict:
+        """
+        Return a subset of the experiment contents for pickling.
+        """
+        policy_feedback = {
+            key: value
+            for key, value in self.policy_feedback.items()
+            if key
+            in [
+                "action",
+                "reward",
+                "n_rounds",
+                "n_actions",
+                "segments",
+                "batches",
+            ]
+        }
+        return {
+            "policy_feedback": policy_feedback,
+            "policies": self.policies,
+            "reward_summary": self.reward_summary,
+        }

@@ -2,12 +2,7 @@
   name: obd_demo
   parameters:
     batch_size: 5
-    len_list: 3
-    n_actions: 3
 - key: LinUCB
   name: obd_demo
   parameters:
-    dim: 27
     batch_size: 5
-    len_list: 3
-    n_actions: 3

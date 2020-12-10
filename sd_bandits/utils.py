@@ -215,11 +215,14 @@ def build_obj_spec(
     return obj_dict
 
 
-def _make_obj(obj_dict: dict, obj_type: str) -> Tuple[Any, dict]:
+def _make_obj(
+    obj_dict: dict, obj_type: str, extra_parameters: Optional[dict]
+) -> Tuple[Any, dict]:
     obj_name = obj_dict["name"]
     obj_key = obj_dict["key"]
     parameter_dict = obj_dict.get("parameters", {})
-
+    if extra_parameters is not None:
+        parameter_dict.update(extra_parameters)
     if obj_type == "policy":
         payload = policy_dict[obj_key](**parameter_dict)
     elif obj_type == "estimator":
@@ -238,7 +241,7 @@ def _make_obj(obj_dict: dict, obj_type: str) -> Tuple[Any, dict]:
 
 
 def load_obj_from_spec(
-    obj_dict_path: str, obj_type: str
+    obj_dict_path: str, obj_type: str, extra_parameters: Optional[dict] = None
 ) -> Union[Tuple[Any, dict], List[Tuple[Any, dict]]]:
     """
     Loads policy/estimator from spec dict
