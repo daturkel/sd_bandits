@@ -5,4 +5,5 @@
 - key: LinUCB
   name: obd_demo
   parameters:
+    dim: 27
     batch_size: 5
