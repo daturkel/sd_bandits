@@ -29,14 +29,14 @@ def process_arguments(args):
 
 
 if __name__ == "__main__":
+    params = process_arguments(sys.argv[1:])
+
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(message)s",
         level=logging.INFO,
-        stream=sys.stdout,
+        stream=f"log_{params.experiment_dir}.log",
         datefmt="%-I:%M:%S",
     )
-
-    params = process_arguments(sys.argv[1:])
 
     logging.info("Building dataset")
     dataset_spec_path = os.path.join(params.experiment_dir, "dataset_spec.yaml")
