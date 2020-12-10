@@ -58,9 +58,9 @@ class Experiment:
         for policy_name in self.policy_feedback:
             this_policy_feedback = {}
             for key, value in self.policy_feedback[policy_name].items():
-                if key in ["reward", "segments", "batches"]:
+                if key in ["segments", "batches"]:
                     this_policy_feedback[key] = value.astype("int8")
-                elif key in ["n_rounds", "n_actions"]:
+                elif key in ["reward", "n_rounds", "n_actions"]:
                     this_policy_feedback[key] = value
             policy_feedback[policy_name] = this_policy_feedback
 

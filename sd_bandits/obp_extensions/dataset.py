@@ -486,15 +486,15 @@ class DeezerDataset(BaseRealBanditDataset):
                 selected_actions.append(all_item_indices[i])
                 batches.append(i // users_per_batch)
 
-        actions = np.array(actions)
+        actions = np.array(actions).astype(int)
         rewards = np.array(rewards)
-        positions = np.array(positions)
+        positions = np.array(positions).astype(int)
         context = np.array(context)
-        segments = np.array(segments)
+        segments = np.array(segments).astype(int)
         action_context = self.playlist_features[actions, :]
         n_rounds = len(actions)
-        selected_actions = np.array(selected_actions)
-        batches = np.array(batches)
+        selected_actions = np.array(selected_actions).astype(int)
+        batches = np.array(batches).astype(int)
 
         return {
             "action": actions,
