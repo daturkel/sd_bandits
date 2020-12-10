@@ -1,10 +1,18 @@
+- key: Random
+  name: deezer_demo
+  parameters:
+    len_list: 12
+    n_actions: 862
+  meta:
+    users_per_batch: 1000
 - key: BernoulliTS
   name: deezer_demo
   parameters:
     batch_size: 1
     len_list: 12
     n_actions: 862
-  type: policy
+  meta:
+    users_per_batch: 1000
 - key: EpsilonGreedy
   name: deezer_demo
   parameters:
@@ -13,4 +21,5 @@
     len_list: 12
     n_actions: 862
     policy_name: "egreedy_0.1"
-  type: policy
+  meta:
+    users_per_batch: 1000
