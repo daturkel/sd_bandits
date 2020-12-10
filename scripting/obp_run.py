@@ -29,14 +29,17 @@ def process_arguments(args):
 
 
 if __name__ == "__main__":
+    params = process_arguments(sys.argv[1:])
+
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(message)s",
         level=logging.INFO,
-        stream=sys.stdout,
+        handlers=[
+            logging.FileHandler(f"{params.experiment_dir}.log", "w"),
+            logging.StreamHandler(sys.stdout),
+        ],
         datefmt="%-I:%M:%S",
     )
-
-    params = process_arguments(sys.argv[1:])
 
     logging.info("Building dataset")
     dataset_spec_path = os.path.join(params.experiment_dir, "dataset_spec.yaml")
@@ -44,7 +47,15 @@ if __name__ == "__main__":
 
     logging.info("Building policies")
     policy_spec_path = os.path.join(params.experiment_dir, "policy_spec.yaml")
-    policies = utils.load_obj_from_spec(policy_spec_path, "policy")
+    policies = utils.load_obj_from_spec(
+        policy_spec_path,
+        "policy",
+        extra_parameters={
+            "n_actions": dataset.n_actions,
+            "len_list": dataset.len_list,
+            "random_state": 1,
+        },
+    )
 
     if os.path.exists(os.path.join(params.experiment_dir, "estimator_spec.yaml")):
         logging.info("Building estimators")
@@ -62,5 +73,5 @@ if __name__ == "__main__":
         f"Writing output to results {os.path.join(params.experiment_dir,'results.pickle')}"
     )
     with open(os.path.join(params.experiment_dir, "results.pickle"), "wb") as file:
-        pickle.dump(experiment, file)
+        pickle.dump(experiment.output, file)
     logging.info("Bye!")
