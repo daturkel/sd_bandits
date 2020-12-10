@@ -34,7 +34,10 @@ if __name__ == "__main__":
     logging.basicConfig(
         format="%(asctime)s %(levelname)s: %(message)s",
         level=logging.INFO,
-        handlers=[logging.FileHandler("debug.log"), logging.StreamHandler(sys.stdout)],
+        handlers=[
+            logging.FileHandler(f"{params.experiment_dir}.log", "w"),
+            logging.StreamHandler(sys.stdout),
+        ],
         datefmt="%-I:%M:%S",
     )
 

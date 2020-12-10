@@ -49,6 +49,27 @@ class Experiment:
     def _run_experiment(self):
         raise NotImplementedError
 
+    @property
+    def output(self) -> dict:
+        """
+        Return a subset of the experiment contents for pickling.
+        """
+        policy_feedback = {}
+        for policy_name in self.policy_feedback:
+            this_policy_feedback = {}
+            for key, value in self.policy_feedback[policy_name].items():
+                if key in ["reward", "segments", "batches"]:
+                    this_policy_feedback[key] = value.astype("int8")
+                elif key in ["n_rounds", "n_actions"]:
+                    this_policy_feedback[key] = value
+            policy_feedback[policy_name] = this_policy_feedback
+
+        return {
+            "policy_feedback": policy_feedback,
+            "policies": self.policies,
+            "reward_summary": self.reward_summary,
+        }
+
 
 class OBDExperiment(Experiment):
     def __init__(
@@ -139,13 +160,6 @@ class OBDExperiment(Experiment):
 
         """
         logging.info("Estimating rewards")
-        logging.info("Estimating reward confidence interval for logged feedback")
-        self.reward_summary["logged"] = estimate_confidence_interval_by_bootstrap(
-            self.policy_feedback["logged"]["reward"],
-            n_bootstrap_samples=100,
-            random_state=10,
-        )
-
         for i, (policy_name, feedback) in enumerate(self.policy_feedback.items()):
             if policy_name == "logged":
                 logging.info(
@@ -264,27 +278,3 @@ class DeezerExperiment(Experiment):
         """
         self.learn_and_obtain_policy_feedback()
         self.get_policy_rewards()
-
-    @property
-    def output(self) -> dict:
-        """
-        Return a subset of the experiment contents for pickling.
-        """
-        policy_feedback = {
-            key: value
-            for key, value in self.policy_feedback.items()
-            if key
-            in [
-                "action",
-                "reward",
-                "n_rounds",
-                "n_actions",
-                "segments",
-                "batches",
-            ]
-        }
-        return {
-            "policy_feedback": policy_feedback,
-            "policies": self.policies,
-            "reward_summary": self.reward_summary,
-        }
