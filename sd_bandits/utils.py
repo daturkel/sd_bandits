@@ -32,6 +32,7 @@ from obp.ope.estimators import (
 from obp.dataset import OpenBanditDataset
 
 from sd_bandits.obp_extensions.dataset import DeezerDataset
+from sd_bandits.obp_extensions.policy import SegmentPolicy
 
 SHELL_SCRIPT = """#!/bin/bash
 #SBATCH --job-name=obp
@@ -62,6 +63,7 @@ policy_dict = {
     "LogisticEpsilonGreedy": LogisticEpsilonGreedy,
     "LogisticTS": LogisticTS,
     "LogisticUCB": LogisticUCB,
+    "SegmentPolicy": SegmentPolicy,
 }
 
 estimator_dict = {
@@ -224,7 +226,10 @@ def _make_obj(
     if extra_parameters is not None:
         parameter_dict.update(extra_parameters)
     if obj_type == "policy":
+        if "policy_name" in parameter_dict:
+            policy_name = parameter_dict.pop("policy_name")
         payload = policy_dict[obj_key](**parameter_dict)
+        payload.policy_name = policy_name
     elif obj_type == "estimator":
         payload = estimator_dict[obj_key](**parameter_dict)
     elif obj_type == "dataset":
