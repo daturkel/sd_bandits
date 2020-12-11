@@ -1,0 +1,7 @@
+key: deezer
+name: deezer
+parameters:
+  # user_features: "/scratch/dgt238/sd_bandits_data/deezer/user_features.csv"
+  # playlist_features: "/scratch/dgt238/sd_bandits_data/deezer/playlist_features.csv"
+  user_features: "/Users/danturkel/Datasets/deezer_carousel_bandits/user_features.csv"
+  playlist_features: "/Users/danturkel/Datasets/deezer_carousel_bandits/playlist_features.csv"

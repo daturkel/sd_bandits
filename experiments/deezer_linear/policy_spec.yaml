@@ -1,0 +1,26 @@
+- key: LinEpsilonGreedy
+  name: deezer
+  parameters:
+    policy_name: lin_egreedy_exploit
+    epsilon: 0.01
+    dim: 97
+    batch_size: 1 # will be overwritten
+  meta:
+    users_per_batch: 1000
+- key: LinEpsilonGreedy
+  name: deezer
+  parameters:
+    policy_name: lin_egreedy_explore
+    epsilon: 0.1
+    dim: 97
+    batch_size: 1 # will be overwritten
+  meta:
+    users_per_batch: 1000
+- key: LinTS
+  name: deezer
+  parameters:
+    policy_name: lin_ts
+    dim: 97
+    batch_size: 1 # will be overwritten
+  meta:
+    users_per_batch: 1000

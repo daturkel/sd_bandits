@@ -1,0 +1,40 @@
+- key: Random
+  name: deezer
+  parameters:
+    policy_name: rand
+  meta:
+    users_per_batch: 1000
+- key: EpsilonGreedy
+  name: deezer
+  parameters:
+    policy_name: egreedy_exploit
+    epsilon: 0.01
+    batch_size: 1 # will be overwritten
+  meta:
+    users_per_batch: 1000
+- key: EpsilonGreedy
+  name: deezer
+  parameters:
+    policy_name: egreedy_explore
+    epsilon: 0.1
+    batch_size: 1 # will be overwritten
+  meta:
+    users_per_batch: 1000
+- key: BernoulliTS
+  name: deezer
+  parameters:
+    policy_name: ts_naive
+    alpha: 1
+    beta: 1
+    batch_size: 1 # will be overwritten
+  meta:
+    users_per_batch: 1000
+- key: BernoulliTS
+  name: deezer
+  parameters:
+    policy_name: ts_pessimistic
+    alpha: 100
+    beta: 100
+    batch_size: 1 # will be overwritten
+  meta:
+    users_per_batch: 1000
