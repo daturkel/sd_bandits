@@ -470,7 +470,9 @@ class DeezerDataset(BaseRealBanditDataset):
                     policy.update_params(
                         action=action,
                         reward=reward,
-                        context=self.user_features[user_idx],
+                        context=self.user_features[user_idx].reshape(
+                            1, self.user_features.shape[1]
+                        ),
                     )
                 elif policy.policy_type == "segmented":
                     policy.update_params(
@@ -486,15 +488,15 @@ class DeezerDataset(BaseRealBanditDataset):
                 selected_actions.append(all_item_indices[i])
                 batches.append(i // users_per_batch)
 
-        actions = np.array(actions).astype(int)
+        actions = np.array(actions, dtype=int)
         rewards = np.array(rewards)
-        positions = np.array(positions).astype(int)
+        positions = np.array(positions, dtype=int)
         context = np.array(context)
-        segments = np.array(segments).astype(int)
+        segments = np.array(segments, dtype=int)
         action_context = self.playlist_features[actions, :]
         n_rounds = len(actions)
-        selected_actions = np.array(selected_actions).astype(int)
-        batches = np.array(batches).astype(int)
+        selected_actions = np.array(selected_actions, dtype=int)
+        batches = np.array(batches, dtype=int)
 
         return {
             "action": actions,
