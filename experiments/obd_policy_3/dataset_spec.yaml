@@ -1,0 +1,6 @@
+key: obp
+name: obd
+parameters:
+  behavior_policy: random
+  campaign: all
+  data_path: "/scratch/ci411/sd_bandits_data/obd"

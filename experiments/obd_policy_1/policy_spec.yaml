@@ -1,0 +1,50 @@
+- key: Random
+  name: obd_snipw
+  parameters:
+    policy_name: rand
+- key: EpsilonGreedy
+  name: obd_snipw
+  parameters:
+    policy_name: egreedy_exploit
+    epsilon: 0.01
+    batch_size: 1
+- key: EpsilonGreedy
+  name: obd_snipw
+  parameters:
+    policy_name: egreedy_explore
+    epsilon: 0.1
+    batch_size: 1
+- key: BernoulliTS
+  name: obd_snipw
+  parameters:
+    policy_name: ts_naive
+    alpha: 1
+    beta: 1
+    batch_size: 1
+- key: BernoulliTS
+  name: obd_snipw
+  parameters:
+    policy_name: ts_pessimistic
+    alpha: 100
+    beta: 100
+    batch_size: 1
+- key: LinEpsilonGreedy
+  name: obd_snipw
+  parameters:
+    policy_name: lin_egreedy_exploit
+    epsilon: 0.01
+    dim: 26
+    batch_size: 1
+- key: LinEpsilonGreedy
+  name: obd_snipw
+  parameters:
+    policy_name: lin_egreedy_explore
+    epsilon: 0.1
+    dim: 26
+    batch_size: 1
+- key: LinTS
+  name: obd_snipw
+  parameters:
+    policy_name: lin_ts
+    dim: 26
+    batch_size: 1
