@@ -33,22 +33,18 @@
   parameters:
     policy_name: lin_egreedy_exploit
     epsilon: 0.01
+    dim: 20
     batch_size: 1 # will be overwritten
 - key: LinEpsilonGreedy
   name: deezer
   parameters:
     policy_name: lin_egreedy_explore
     epsilon: 0.1
+    dim: 20
     batch_size: 1 # will be overwritten
 - key: LinTS
   name: deezer
   parameters:
-    policy_name: lin_egreedy_exploit
-    epsilon: 0.01
-    batch_size: 1 # will be overwritten
-- key: LinTS
-  name: deezer
-  parameters:
-    policy_name: lin_egreedy_explore
-    epsilon: 0.1
+    policy_name: lin_ts
+    dim: 20
     batch_size: 1 # will be overwritten

@@ -35,7 +35,7 @@ if __name__ == "__main__":
         format="%(asctime)s %(levelname)s: %(message)s",
         level=logging.INFO,
         handlers=[
-            logging.FileHandler(f"{params.experiment_dir}.log", "w"),
+            logging.FileHandler(f"{params.experiment_dir}/experiment.log", "w"),
             logging.StreamHandler(sys.stdout),
         ],
         datefmt="%-I:%M:%S",
