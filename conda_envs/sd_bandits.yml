@@ -58,6 +58,7 @@ dependencies:
     - pyyaml==5.3.1
     - scikit-learn==0.23.2
     - scipy==1.5.4
+    - sd-bandits==0.0.1
     - seaborn==0.11.0
     - threadpoolctl==2.1.0
     - tqdm==4.52.0
