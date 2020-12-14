@@ -141,6 +141,7 @@ class DeezerDataset(BaseRealBanditDataset):
         cascade: bool = True,
         cascade_at: str = "first",
         policy: Optional[Union[BaseContextFreePolicy, BaseContextualPolicy]] = None,
+        lightweight: bool = False,
     ) -> dict:
         """Generate feedback based on the "ground truth" Deezer user/item features.
 
@@ -165,6 +166,9 @@ class DeezerDataset(BaseRealBanditDataset):
             last clicked item.
         policy : Optional[Union[BaseContextFreePolicy, BaseContextualPolicy]]
             Optionally, a policy that will be used for online simulation.
+        lightweight : bool (default = False)
+            Only return the feedback relevant for reward analysis: segments, batches, reward,
+            n_rounds, n_actions, and policy (if applicable).
 
         Returns
         -------
@@ -199,11 +203,7 @@ class DeezerDataset(BaseRealBanditDataset):
             raise ValueError("cascade_at must be one of ('first','last')")
         if policy is None:
             return self._obtain_batch_bandit_feedback_random(
-                n_batches,
-                users_per_batch,
-                seed,
-                cascade,
-                cascade_at,
+                n_batches, users_per_batch, seed, cascade, cascade_at, lightweight
             )
         else:
             return self._obtain_batch_bandit_feedback_on_policy(
@@ -213,6 +213,7 @@ class DeezerDataset(BaseRealBanditDataset):
                 seed,
                 cascade,
                 cascade_at,
+                lightweight,
             )
 
     def _obtain_batch_bandit_feedback_random(
@@ -222,6 +223,7 @@ class DeezerDataset(BaseRealBanditDataset):
         seed: int,
         cascade: bool,
         cascade_at: str,
+        lightweight: bool,
     ) -> dict:
         """Generate feedback based on the "ground truth" Deezer user/item features.
 
@@ -245,6 +247,9 @@ class DeezerDataset(BaseRealBanditDataset):
         cascade_at : str
             One of "first" or "last" indicating if we want to stop observing at the first or
             last clicked item.
+        lightweight : bool
+            Only return the feedback relevant for reward analysis: segments, batches, reward,
+            n_rounds, and n_actions.
 
         Returns
         -------
@@ -326,29 +331,37 @@ class DeezerDataset(BaseRealBanditDataset):
                 segments.append(relevant_user_segments.iloc[row])
                 batches.append(row // users_per_batch)
 
-        actions = np.array(actions)
         rewards = np.array(rewards)
-        positions = np.array(positions)
-        context = np.array(context)
         segments = np.array(segments)
-        action_context = self.playlist_features[actions, :]
-        pscore = np.array([1 / self.playlist_features.shape[0] for i in actions])
         n_rounds = len(actions)
         batches = np.array(batches)
-
-        return {
-            "action": actions,
-            "reward": rewards,
-            "position": positions,
-            "context": context,
-            "action_context": action_context,
-            "pscore": pscore,
-            "n_rounds": n_rounds,
-            "n_actions": self.n_actions,
-            "users": user_indices,
-            "segments": segments,
-            "batches": batches,
-        }
+        if not lightweight:
+            actions = np.array(actions)
+            positions = np.array(positions)
+            context = np.array(context)
+            action_context = self.playlist_features[actions, :]
+            pscore = np.array([1 / self.playlist_features.shape[0] for i in actions])
+            return {
+                "action": actions,
+                "reward": rewards,
+                "position": positions,
+                "context": context,
+                "action_context": action_context,
+                "pscore": pscore,
+                "n_rounds": n_rounds,
+                "n_actions": self.n_actions,
+                "users": user_indices,
+                "segments": segments,
+                "batches": batches,
+            }
+        else:
+            return {
+                "reward": rewards,
+                "n_rounds": n_rounds,
+                "n_actions": self.n_actions,
+                "segments": segments,
+                "batches": batches,
+            }
 
     def _obtain_batch_bandit_feedback_on_policy(
         self,
@@ -358,6 +371,7 @@ class DeezerDataset(BaseRealBanditDataset):
         seed: int,
         cascade: bool,
         cascade_at: str,
+        lightweight: bool,
     ) -> dict:
         """Generate feedback based on the "ground truth" Deezer user/item features.
 
@@ -383,6 +397,9 @@ class DeezerDataset(BaseRealBanditDataset):
         cascade_at : str
             One of "first" or "last" indicating if we want to stop observing at the first or
             last clicked item.
+        lightweight : bool
+            Only return the feedback relevant for reward analysis: segments, batches, reward,
+            n_rounds, n_actions, and policy.
 
         Returns
         -------
@@ -488,28 +505,37 @@ class DeezerDataset(BaseRealBanditDataset):
                 selected_actions.append(all_item_indices[i])
                 batches.append(i // users_per_batch)
 
-        actions = np.array(actions, dtype=int)
         rewards = np.array(rewards)
-        positions = np.array(positions, dtype=int)
-        context = np.array(context)
         segments = np.array(segments, dtype=int)
-        action_context = self.playlist_features[actions, :]
         n_rounds = len(actions)
-        selected_actions = np.array(selected_actions, dtype=int)
         batches = np.array(batches, dtype=int)
-
-        return {
-            "action": actions,
-            "reward": rewards,
-            "position": positions,
-            "context": context,
-            "action_context": action_context,
-            "pscore": None,
-            "n_rounds": n_rounds,
-            "n_actions": self.n_actions,
-            "policy": policy,
-            "selected_actions": selected_actions,
-            "users": user_indices,
-            "segments": segments,
-            "batches": batches,
-        }
+        if not lightweight:
+            actions = np.array(actions, dtype=int)
+            positions = np.array(positions, dtype=int)
+            context = np.array(context)
+            action_context = self.playlist_features[actions, :]
+            selected_actions = np.array(selected_actions, dtype=int)
+            return {
+                "action": actions,
+                "reward": rewards,
+                "position": positions,
+                "context": context,
+                "action_context": action_context,
+                "pscore": None,
+                "n_rounds": n_rounds,
+                "n_actions": self.n_actions,
+                "policy": policy,
+                "selected_actions": selected_actions,
+                "users": user_indices,
+                "segments": segments,
+                "batches": batches,
+            }
+        else:
+            return {
+                "reward": rewards,
+                "n_rounds": n_rounds,
+                "n_actions": self.n_actions,
+                "policy": policy,
+                "segments": segments,
+                "batches": batches,
+            }

@@ -36,7 +36,7 @@ class Experiment:
         self.policies = policies
 
         self.policy_feedback = defaultdict(dict)
-        self.reward_summary = {}
+        self.reward_summary = defaultdict(dict)
 
     def run_experiment(self):
         logging.info("Running experiment")
@@ -76,7 +76,7 @@ class OBDExperiment(Experiment):
         self,
         dataset: OpenBanditDataset,
         policies: List[Union[BaseContextFreePolicy, BaseContextualPolicy]],
-        estimator: BaseOffPolicyEstimator,
+        estimators: List[BaseOffPolicyEstimator],
         regression_base_model: Optional[sklearn.base.BaseEstimator] = None,
     ):
         """Class to encapsulate OBD experiments, which perform offline learning and estimation.
@@ -93,9 +93,10 @@ class OBDExperiment(Experiment):
             If needed, a regression base model that will be used by the OPE.
         """
         super().__init__(dataset, policies)
-        self.estimator = estimator
-        self.estimator_required_args = estimator_args_dict[
-            type(self.estimator).__name__
+        self.estimators = estimators
+        self.estimator_required_args = [
+            estimator_args_dict[type(estimator).__name__]
+            for estimator in self.estimators
         ]
         self.regression_base_model = regression_base_model
 
@@ -160,35 +161,50 @@ class OBDExperiment(Experiment):
 
         """
         logging.info("Estimating rewards")
-        for i, (policy_name, feedback) in enumerate(self.policy_feedback.items()):
-            if policy_name == "logged":
-                logging.info(
-                    f"[{i + 1} of {len(self.policy_feedback)}] Estimating reward confidence interval for {policy_name}"
-                )
-                reward = feedback["reward"]
-            else:
-                logging.info(
-                    f"[{i + 1} of {len(self.policy_feedback)}] Estimating rewards and reward confidence interval for {policy_name}"
-                )
-                est_args = {}
-                for key in self.estimator_required_args:
-                    # use the action dist when available (e.g. for baseline), else use actions (e.g. for estimated policies)
-                    if key == "action_dist":
-                        est_args[key] = feedback["action"]
-                    elif key == "estimated_rewards_by_reg_model":
-                        est_args[key] = self.estimated_rewards_by_reg_model
-                    else:
-                        est_args[key] = self.policy_feedback["logged"][key]
-                reward = self.estimator._estimate_round_rewards(**est_args)
-                self.policy_feedback[policy_name]["reward"] = reward
-
-            self.reward_summary[
-                policy_name
-            ] = estimate_confidence_interval_by_bootstrap(
-                reward,
-                n_bootstrap_samples=100,
-                random_state=10,
+        for e, estimator in enumerate(self.estimators):
+            logging.info(
+                f"[{e + 1} of {len(self.estimators)}] Estimator {type(estimator).__name__}"
             )
+            for i, (policy_name, feedback) in enumerate(self.policy_feedback.items()):
+                if policy_name == "logged":
+                    logging.info(
+                        f"  [{i + 1} of {len(self.policy_feedback)}] Estimating reward confidence interval for {policy_name}"
+                    )
+                    reward = feedback["reward"]
+                    self.reward_summary[
+                        policy_name
+                    ] = estimate_confidence_interval_by_bootstrap(
+                        reward,
+                        n_bootstrap_samples=100,
+                        random_state=10,
+                    )
+                else:
+                    logging.info(
+                        f"  [{i + 1} of {len(self.policy_feedback)}] Estimating rewards and reward confidence interval for {policy_name}"
+                    )
+                    est_args = {}
+                    for key in self.estimator_required_args[e]:
+                        # use the action dist when available (e.g. for baseline), else use actions (e.g. for estimated policies)
+                        if key == "action_dist":
+                            est_args[key] = feedback["action"]
+                        elif key == "estimated_rewards_by_reg_model":
+                            est_args[key] = self.estimated_rewards_by_reg_model
+                        else:
+                            est_args[key] = self.policy_feedback["logged"][key]
+                    reward = estimator._estimate_round_rewards(**est_args)
+                    if "reward" not in self.policy_feedback[policy_name]:
+                        self.policy_feedback[policy_name]["reward"] = {}
+                    self.policy_feedback[policy_name]["reward"][
+                        type(estimator).__name__
+                    ] = reward
+
+                    self.reward_summary[policy_name][
+                        type(estimator).__name__
+                    ] = estimate_confidence_interval_by_bootstrap(
+                        reward,
+                        n_bootstrap_samples=100,
+                        random_state=10,
+                    )
 
     def _run_experiment(self):
         """
@@ -242,12 +258,15 @@ class DeezerExperiment(Experiment):
                     policy.policy_name
                 ] = self.dataset.obtain_batch_bandit_feedback(
                     policy=policy,
+                    lightweight=True,
                     **policy_meta,
                 )
             else:
                 self.policy_feedback[
                     policy.policy_name
-                ] = self.dataset.obtain_batch_bandit_feedback(policy=policy)
+                ] = self.dataset.obtain_batch_bandit_feedback(
+                    policy=policy, lightweight=True
+                )
 
     @log_performance
     def get_policy_rewards(self):
